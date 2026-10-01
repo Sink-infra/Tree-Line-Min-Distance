@@ -1,0 +1,466 @@
+{
+  "schema_version": 1,
+  "operator": "TreeLineMinDistance",
+  "category": "mock",
+  "cases": [
+    {
+      "name": "mock_01",
+      "expectation": "success",
+      "tree_points_shape": [
+        1,
+        1,
+        3
+      ],
+      "line_segments_shape": [
+        1,
+        1,
+        2,
+        3
+      ],
+      "dtype": "float32",
+      "line_segments_dtype": null,
+      "input_pattern": "separated_random",
+      "seed": 20261005,
+      "tree_points_format": "ND",
+      "line_segments_format": "ND",
+      "expected_error": null,
+      "covers": [
+        "workload_shape",
+        "workload_dtype"
+      ],
+      "note": "Deterministic synthetic coordinates"
+    },
+    {
+      "name": "mock_02",
+      "expectation": "success",
+      "tree_points_shape": [
+        1,
+        19,
+        3
+      ],
+      "line_segments_shape": [
+        1,
+        7,
+        2,
+        3
+      ],
+      "dtype": "float32",
+      "line_segments_dtype": null,
+      "input_pattern": "separated_random",
+      "seed": 20261006,
+      "tree_points_format": "ND",
+      "line_segments_format": "ND",
+      "expected_error": null,
+      "covers": [
+        "workload_shape",
+        "workload_dtype"
+      ],
+      "note": "Deterministic synthetic coordinates"
+    },
+    {
+      "name": "mock_03",
+      "expectation": "success",
+      "tree_points_shape": [
+        1,
+        33,
+        3
+      ],
+      "line_segments_shape": [
+        1,
+        31,
+        2,
+        3
+      ],
+      "dtype": "float16",
+      "line_segments_dtype": null,
+      "input_pattern": "separated_random",
+      "seed": 20261007,
+      "tree_points_format": "ND",
+      "line_segments_format": "ND",
+      "expected_error": null,
+      "covers": [
+        "workload_shape",
+        "workload_dtype"
+      ],
+      "note": "Deterministic synthetic coordinates"
+    },
+    {
+      "name": "mock_04",
+      "expectation": "success",
+      "tree_points_shape": [
+        8,
+        3,
+        3
+      ],
+      "line_segments_shape": [
+        8,
+        19,
+        2,
+        3
+      ],
+      "dtype": "float32",
+      "line_segments_dtype": null,
+      "input_pattern": "separated_random",
+      "seed": 20261008,
+      "tree_points_format": "ND",
+      "line_segments_format": "ND",
+      "expected_error": null,
+      "covers": [
+        "workload_shape",
+        "workload_dtype"
+      ],
+      "note": "Deterministic synthetic coordinates"
+    },
+    {
+      "name": "mock_05",
+      "expectation": "success",
+      "tree_points_shape": [
+        4,
+        127,
+        3
+      ],
+      "line_segments_shape": [
+        4,
+        129,
+        2,
+        3
+      ],
+      "dtype": "float32",
+      "line_segments_dtype": null,
+      "input_pattern": "separated_random",
+      "seed": 20261009,
+      "tree_points_format": "ND",
+      "line_segments_format": "ND",
+      "expected_error": null,
+      "covers": [
+        "workload_shape",
+        "workload_dtype"
+      ],
+      "note": "Deterministic synthetic coordinates"
+    },
+    {
+      "name": "mock_06",
+      "expectation": "success",
+      "tree_points_shape": [
+        2,
+        256,
+        3
+      ],
+      "line_segments_shape": [
+        2,
+        64,
+        2,
+        3
+      ],
+      "dtype": "float16",
+      "line_segments_dtype": null,
+      "input_pattern": "separated_random",
+      "seed": 20261010,
+      "tree_points_format": "ND",
+      "line_segments_format": "ND",
+      "expected_error": null,
+      "covers": [
+        "workload_shape",
+        "workload_dtype"
+      ],
+      "note": "Deterministic synthetic coordinates"
+    },
+    {
+      "name": "mock_07",
+      "expectation": "success",
+      "tree_points_shape": [
+        2,
+        1003,
+        3
+      ],
+      "line_segments_shape": [
+        2,
+        513,
+        2,
+        3
+      ],
+      "dtype": "float32",
+      "line_segments_dtype": null,
+      "input_pattern": "separated_random",
+      "seed": 20261011,
+      "tree_points_format": "ND",
+      "line_segments_format": "ND",
+      "expected_error": null,
+      "covers": [
+        "workload_shape",
+        "workload_dtype"
+      ],
+      "note": "Deterministic synthetic coordinates"
+    },
+    {
+      "name": "mock_08",
+      "expectation": "success",
+      "tree_points_shape": [
+        2,
+        4097,
+        3
+      ],
+      "line_segments_shape": [
+        2,
+        513,
+        2,
+        3
+      ],
+      "dtype": "float16",
+      "line_segments_dtype": null,
+      "input_pattern": "separated_random",
+      "seed": 20261012,
+      "tree_points_format": "ND",
+      "line_segments_format": "ND",
+      "expected_error": null,
+      "covers": [
+        "workload_shape",
+        "workload_dtype"
+      ],
+      "note": "Deterministic synthetic coordinates"
+    },
+    {
+      "name": "mock_09",
+      "expectation": "success",
+      "tree_points_shape": [
+        1,
+        16384,
+        3
+      ],
+      "line_segments_shape": [
+        1,
+        1,
+        2,
+        3
+      ],
+      "dtype": "float32",
+      "line_segments_dtype": null,
+      "input_pattern": "separated_random",
+      "seed": 20261013,
+      "tree_points_format": "ND",
+      "line_segments_format": "ND",
+      "expected_error": null,
+      "covers": [
+        "workload_shape",
+        "workload_dtype"
+      ],
+      "note": "Deterministic synthetic coordinates"
+    },
+    {
+      "name": "mock_10",
+      "expectation": "success",
+      "tree_points_shape": [
+        1,
+        1,
+        3
+      ],
+      "line_segments_shape": [
+        1,
+        1024,
+        2,
+        3
+      ],
+      "dtype": "float16",
+      "line_segments_dtype": null,
+      "input_pattern": "separated_random",
+      "seed": 20261014,
+      "tree_points_format": "ND",
+      "line_segments_format": "ND",
+      "expected_error": null,
+      "covers": [
+        "workload_shape",
+        "workload_dtype"
+      ],
+      "note": "Deterministic synthetic coordinates"
+    },
+    {
+      "name": "mock_11",
+      "expectation": "success",
+      "tree_points_shape": [
+        8,
+        16384,
+        3
+      ],
+      "line_segments_shape": [
+        8,
+        1024,
+        2,
+        3
+      ],
+      "dtype": "float32",
+      "line_segments_dtype": null,
+      "input_pattern": "separated_random",
+      "seed": 20261015,
+      "tree_points_format": "ND",
+      "line_segments_format": "ND",
+      "expected_error": null,
+      "covers": [
+        "workload_shape",
+        "workload_dtype"
+      ],
+      "note": "Deterministic synthetic coordinates"
+    },
+    {
+      "name": "mock_12",
+      "expectation": "success",
+      "tree_points_shape": [
+        4,
+        8192,
+        3
+      ],
+      "line_segments_shape": [
+        4,
+        1024,
+        2,
+        3
+      ],
+      "dtype": "float16",
+      "line_segments_dtype": null,
+      "input_pattern": "separated_random",
+      "seed": 20261016,
+      "tree_points_format": "ND",
+      "line_segments_format": "ND",
+      "expected_error": null,
+      "covers": [
+        "workload_shape",
+        "workload_dtype"
+      ],
+      "note": "Deterministic synthetic coordinates"
+    },
+    {
+      "name": "mock_13",
+      "expectation": "success",
+      "tree_points_shape": [
+        1,
+        1,
+        3
+      ],
+      "line_segments_shape": [
+        1,
+        2,
+        2,
+        3
+      ],
+      "dtype": "float32",
+      "line_segments_dtype": null,
+      "input_pattern": "separated_random",
+      "seed": 20261017,
+      "tree_points_format": "ND",
+      "line_segments_format": "ND",
+      "expected_error": null,
+      "covers": [
+        "workload_shape",
+        "workload_dtype"
+      ],
+      "note": "Deterministic synthetic coordinates"
+    },
+    {
+      "name": "mock_14",
+      "expectation": "success",
+      "tree_points_shape": [
+        1,
+        1,
+        3
+      ],
+      "line_segments_shape": [
+        1,
+        2,
+        2,
+        3
+      ],
+      "dtype": "float16",
+      "line_segments_dtype": null,
+      "input_pattern": "separated_random",
+      "seed": 20261018,
+      "tree_points_format": "ND",
+      "line_segments_format": "ND",
+      "expected_error": null,
+      "covers": [
+        "workload_shape",
+        "workload_dtype"
+      ],
+      "note": "Deterministic synthetic coordinates"
+    },
+    {
+      "name": "mock_15",
+      "expectation": "success",
+      "tree_points_shape": [
+        1,
+        3,
+        3
+      ],
+      "line_segments_shape": [
+        1,
+        2,
+        2,
+        3
+      ],
+      "dtype": "float32",
+      "line_segments_dtype": null,
+      "input_pattern": "separated_random",
+      "seed": 20261019,
+      "tree_points_format": "ND",
+      "line_segments_format": "ND",
+      "expected_error": null,
+      "covers": [
+        "workload_shape",
+        "workload_dtype"
+      ],
+      "note": "Deterministic synthetic coordinates"
+    },
+    {
+      "name": "mock_16",
+      "expectation": "success",
+      "tree_points_shape": [
+        1,
+        3,
+        3
+      ],
+      "line_segments_shape": [
+        1,
+        1,
+        2,
+        3
+      ],
+      "dtype": "float32",
+      "line_segments_dtype": null,
+      "input_pattern": "separated_random",
+      "seed": 20261020,
+      "tree_points_format": "ND",
+      "line_segments_format": "ND",
+      "expected_error": null,
+      "covers": [
+        "workload_shape",
+        "workload_dtype"
+      ],
+      "note": "Deterministic synthetic coordinates"
+    },
+    {
+      "name": "mock_17",
+      "expectation": "success",
+      "tree_points_shape": [
+        1,
+        1,
+        3
+      ],
+      "line_segments_shape": [
+        1,
+        6,
+        2,
+        3
+      ],
+      "dtype": "float32",
+      "line_segments_dtype": null,
+      "input_pattern": "separated_random",
+      "seed": 20261021,
+      "tree_points_format": "ND",
+      "line_segments_format": "ND",
+      "expected_error": null,
+      "covers": [
+        "workload_shape",
+        "workload_dtype"
+      ],
+      "note": "Deterministic synthetic coordinates"
+    }
+  ]
+}
