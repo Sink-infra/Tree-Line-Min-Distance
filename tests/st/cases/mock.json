@@ -1,0 +1,493 @@
+{
+  "schema_version": 1,
+  "operator": "TreeLineMinDistance",
+  "category": "mock",
+  "cases": [
+    {
+      "name": "mock_01",
+      "expectation": "success",
+      "tree_points_shape": [
+        1,
+        1,
+        3
+      ],
+      "line_segments_shape": [
+        1,
+        1,
+        2,
+        3
+      ],
+      "dtype": "float32",
+      "line_segments_dtype": null,
+      "input_pattern": "fixed_fixture",
+      "tree_points_format": "ND",
+      "line_segments_format": "ND",
+      "expected_error": null,
+      "covers": [
+        "workload_shape",
+        "workload_dtype"
+      ],
+      "note": "Single point beyond the endpoint of an oblique segment",
+      "fixture_file": "mock_01.npz"
+    },
+    {
+      "name": "mock_02",
+      "expectation": "success",
+      "tree_points_shape": [
+        1,
+        19,
+        3
+      ],
+      "line_segments_shape": [
+        1,
+        7,
+        2,
+        3
+      ],
+      "dtype": "float32",
+      "line_segments_dtype": null,
+      "input_pattern": "indexed_random",
+      "seed": 20261008,
+      "tree_points_format": "ND",
+      "line_segments_format": "ND",
+      "expected_error": null,
+      "covers": [
+        "workload_shape",
+        "workload_dtype"
+      ],
+      "note": "Oblique segments with separated coordinate cells and positive point offsets"
+    },
+    {
+      "name": "mock_03",
+      "expectation": "success",
+      "tree_points_shape": [
+        1,
+        33,
+        3
+      ],
+      "line_segments_shape": [
+        1,
+        31,
+        2,
+        3
+      ],
+      "dtype": "float16",
+      "line_segments_dtype": null,
+      "input_pattern": "fixed_fixture",
+      "tree_points_format": "ND",
+      "line_segments_format": "ND",
+      "expected_error": null,
+      "covers": [
+        "workload_shape",
+        "workload_dtype"
+      ],
+      "note": "Quantized FP16 coordinates with interior and exterior projections",
+      "fixture_file": "mock_03.npz"
+    },
+    {
+      "name": "mock_04",
+      "expectation": "success",
+      "tree_points_shape": [
+        8,
+        3,
+        3
+      ],
+      "line_segments_shape": [
+        8,
+        19,
+        2,
+        3
+      ],
+      "dtype": "float32",
+      "line_segments_dtype": null,
+      "input_pattern": "fixed_fixture",
+      "tree_points_format": "ND",
+      "line_segments_format": "ND",
+      "expected_error": null,
+      "covers": [
+        "workload_shape",
+        "workload_dtype"
+      ],
+      "note": "Eight batches with interior and exterior finite-segment projections",
+      "fixture_file": "mock_04.npz"
+    },
+    {
+      "name": "mock_05",
+      "expectation": "success",
+      "tree_points_shape": [
+        4,
+        127,
+        3
+      ],
+      "line_segments_shape": [
+        4,
+        129,
+        2,
+        3
+      ],
+      "dtype": "float32",
+      "line_segments_dtype": null,
+      "input_pattern": "indexed_random",
+      "seed": 20261211,
+      "tree_points_format": "ND",
+      "line_segments_format": "ND",
+      "expected_error": null,
+      "covers": [
+        "workload_shape",
+        "workload_dtype",
+        "point_order"
+      ],
+      "note": "Oblique segments with separated coordinate cells and positive point offsets",
+      "point_order_seed": 20261034
+    },
+    {
+      "name": "mock_06",
+      "expectation": "success",
+      "tree_points_shape": [
+        2,
+        256,
+        3
+      ],
+      "line_segments_shape": [
+        2,
+        64,
+        2,
+        3
+      ],
+      "dtype": "float16",
+      "line_segments_dtype": null,
+      "input_pattern": "indexed_random",
+      "seed": 20264726,
+      "tree_points_format": "ND",
+      "line_segments_format": "ND",
+      "expected_error": null,
+      "covers": [
+        "workload_shape",
+        "workload_dtype"
+      ],
+      "note": "Oblique segments with separated coordinate cells and positive point offsets"
+    },
+    {
+      "name": "mock_07",
+      "expectation": "success",
+      "tree_points_shape": [
+        2,
+        1003,
+        3
+      ],
+      "line_segments_shape": [
+        2,
+        513,
+        2,
+        3
+      ],
+      "dtype": "float32",
+      "line_segments_dtype": null,
+      "input_pattern": "indexed_random_interior",
+      "seed": 20261158,
+      "tree_points_format": "ND",
+      "line_segments_format": "ND",
+      "expected_error": null,
+      "covers": [
+        "workload_shape",
+        "workload_dtype",
+        "point_order"
+      ],
+      "note": "Oblique separated segments with interior point projections",
+      "point_order_seed": 20261034
+    },
+    {
+      "name": "mock_08",
+      "expectation": "success",
+      "tree_points_shape": [
+        2,
+        4097,
+        3
+      ],
+      "line_segments_shape": [
+        2,
+        513,
+        2,
+        3
+      ],
+      "dtype": "float16",
+      "line_segments_dtype": null,
+      "input_pattern": "indexed_random_tail_mix_near_zero",
+      "seed": 23685835,
+      "tree_points_format": "ND",
+      "line_segments_format": "ND",
+      "expected_error": null,
+      "covers": [
+        "workload_shape",
+        "workload_dtype",
+        "point_order"
+      ],
+      "note": "Oblique segments with interior and endpoint projections plus one small positive distance",
+      "point_order_seed": 20261034
+    },
+    {
+      "name": "mock_09",
+      "expectation": "success",
+      "tree_points_shape": [
+        1,
+        16384,
+        3
+      ],
+      "line_segments_shape": [
+        1,
+        1,
+        2,
+        3
+      ],
+      "dtype": "float32",
+      "line_segments_dtype": null,
+      "input_pattern": "indexed_random",
+      "seed": 20261013,
+      "tree_points_format": "ND",
+      "line_segments_format": "ND",
+      "expected_error": null,
+      "covers": [
+        "workload_shape",
+        "workload_dtype"
+      ],
+      "note": "Oblique segments with separated coordinate cells and positive point offsets"
+    },
+    {
+      "name": "mock_10",
+      "expectation": "success",
+      "tree_points_shape": [
+        1,
+        1,
+        3
+      ],
+      "line_segments_shape": [
+        1,
+        1024,
+        2,
+        3
+      ],
+      "dtype": "float16",
+      "line_segments_dtype": null,
+      "input_pattern": "indexed_random_distinct_x",
+      "seed": 20261014,
+      "tree_points_format": "ND",
+      "line_segments_format": "ND",
+      "expected_error": null,
+      "covers": [
+        "workload_shape",
+        "workload_dtype",
+        "quantized_endpoint_separation"
+      ],
+      "note": "Single-point FP16 reduction with distinct quantized x endpoints."
+    },
+    {
+      "name": "mock_11",
+      "expectation": "success",
+      "tree_points_shape": [
+        8,
+        16384,
+        3
+      ],
+      "line_segments_shape": [
+        8,
+        1024,
+        2,
+        3
+      ],
+      "dtype": "float32",
+      "line_segments_dtype": null,
+      "input_pattern": "fixed_fixture",
+      "tree_points_format": "ND",
+      "line_segments_format": "ND",
+      "expected_error": null,
+      "covers": [
+        "workload_shape",
+        "workload_dtype",
+        "dense_intervals",
+        "interior_projection",
+        "independent_points",
+        "near_segment",
+        "endpoint_projection"
+      ],
+      "note": "Independent three-dimensional point and endpoint populations with near distances and mixed projections",
+      "fixture_file": "mock_11.npz"
+    },
+    {
+      "name": "mock_12",
+      "expectation": "success",
+      "tree_points_shape": [
+        4,
+        8192,
+        3
+      ],
+      "line_segments_shape": [
+        4,
+        1024,
+        2,
+        3
+      ],
+      "dtype": "float16",
+      "line_segments_dtype": null,
+      "input_pattern": "dense_random_planes_no_tail",
+      "seed": 20261040,
+      "tree_points_format": "ND",
+      "line_segments_format": "ND",
+      "expected_error": null,
+      "covers": [
+        "workload_shape",
+        "workload_dtype",
+        "dense_intervals",
+        "interior_projection",
+        "shared_start_plane",
+        "unused_tail"
+      ],
+      "note": "Dense quantized finite segments with shared start planes, unique interior projections, and an unused final segment.",
+      "geometry_seed": 2005
+    },
+    {
+      "name": "mock_13",
+      "expectation": "success",
+      "tree_points_shape": [
+        1,
+        1,
+        3
+      ],
+      "line_segments_shape": [
+        1,
+        2,
+        2,
+        3
+      ],
+      "dtype": "float32",
+      "line_segments_dtype": null,
+      "input_pattern": "documented_tie",
+      "seed": 20261017,
+      "tree_points_format": "ND",
+      "line_segments_format": "ND",
+      "expected_error": null,
+      "covers": [
+        "workload_shape",
+        "workload_dtype",
+        "tie"
+      ],
+      "note": "Symmetric finite segments with equal nonzero distance"
+    },
+    {
+      "name": "mock_14",
+      "expectation": "success",
+      "tree_points_shape": [
+        1,
+        1,
+        3
+      ],
+      "line_segments_shape": [
+        1,
+        2,
+        2,
+        3
+      ],
+      "dtype": "float16",
+      "line_segments_dtype": null,
+      "input_pattern": "documented_tie",
+      "seed": 20261018,
+      "tree_points_format": "ND",
+      "line_segments_format": "ND",
+      "expected_error": null,
+      "covers": [
+        "workload_shape",
+        "workload_dtype",
+        "tie"
+      ],
+      "note": "Symmetric finite segments with equal nonzero distance"
+    },
+    {
+      "name": "mock_15",
+      "expectation": "success",
+      "tree_points_shape": [
+        1,
+        3,
+        3
+      ],
+      "line_segments_shape": [
+        1,
+        2,
+        2,
+        3
+      ],
+      "dtype": "float32",
+      "line_segments_dtype": null,
+      "input_pattern": "fixed_fixture",
+      "tree_points_format": "ND",
+      "line_segments_format": "ND",
+      "expected_error": null,
+      "covers": [
+        "workload_shape",
+        "workload_dtype",
+        "zero_distance",
+        "endpoint",
+        "zero_length",
+        "before_start"
+      ],
+      "note": "Degenerate winner before a segment start, interior zero, and positive end projection",
+      "fixture_file": "mock_15.npz"
+    },
+    {
+      "name": "mock_16",
+      "expectation": "success",
+      "tree_points_shape": [
+        1,
+        3,
+        3
+      ],
+      "line_segments_shape": [
+        1,
+        1,
+        2,
+        3
+      ],
+      "dtype": "float32",
+      "line_segments_dtype": null,
+      "input_pattern": "documented_endpoints",
+      "seed": 20261020,
+      "tree_points_format": "ND",
+      "line_segments_format": "ND",
+      "expected_error": null,
+      "covers": [
+        "workload_shape",
+        "workload_dtype",
+        "zero_distance",
+        "endpoint"
+      ],
+      "note": "Projection before, inside, and after a finite segment"
+    },
+    {
+      "name": "mock_17",
+      "expectation": "success",
+      "tree_points_shape": [
+        1,
+        1,
+        3
+      ],
+      "line_segments_shape": [
+        1,
+        6,
+        2,
+        3
+      ],
+      "dtype": "float32",
+      "line_segments_dtype": null,
+      "input_pattern": "fixed_fixture",
+      "tree_points_format": "ND",
+      "line_segments_format": "ND",
+      "expected_error": null,
+      "covers": [
+        "workload_shape",
+        "workload_dtype",
+        "tie",
+        "index_selection"
+      ],
+      "note": "Coplanar nonzero equal minima at two segment indices",
+      "fixture_file": "mock_17.npz"
+    }
+  ]
+}
