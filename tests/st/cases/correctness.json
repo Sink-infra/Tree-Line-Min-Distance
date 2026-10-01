@@ -1,0 +1,983 @@
+{
+  "schema_version": 1,
+  "operator": "TreeLineMinDistance",
+  "category": "correctness",
+  "cases": [
+    {
+      "name": "correctness_float32_documented_endpoints",
+      "expectation": "success",
+      "tree_points_shape": [
+        1,
+        3,
+        3
+      ],
+      "line_segments_shape": [
+        1,
+        1,
+        2,
+        3
+      ],
+      "dtype": "float32",
+      "line_segments_dtype": null,
+      "input_pattern": "documented_endpoints",
+      "seed": 20261001,
+      "tree_points_format": "ND",
+      "line_segments_format": "ND",
+      "expected_error": null,
+      "covers": [
+        "projection_before_start",
+        "projection_inside",
+        "projection_after_end"
+      ],
+      "note": ""
+    },
+    {
+      "name": "correctness_float32_documented_tie",
+      "expectation": "success",
+      "tree_points_shape": [
+        1,
+        1,
+        3
+      ],
+      "line_segments_shape": [
+        1,
+        2,
+        2,
+        3
+      ],
+      "dtype": "float32",
+      "line_segments_dtype": null,
+      "input_pattern": "documented_tie",
+      "seed": 20261001,
+      "tree_points_format": "ND",
+      "line_segments_format": "ND",
+      "expected_error": null,
+      "covers": [
+        "symmetric_tie",
+        "lowest_index"
+      ],
+      "note": ""
+    },
+    {
+      "name": "correctness_float32_documented_zero_length",
+      "expectation": "success",
+      "tree_points_shape": [
+        1,
+        1,
+        3
+      ],
+      "line_segments_shape": [
+        1,
+        2,
+        2,
+        3
+      ],
+      "dtype": "float32",
+      "line_segments_dtype": null,
+      "input_pattern": "documented_zero_length",
+      "seed": 20261001,
+      "tree_points_format": "ND",
+      "line_segments_format": "ND",
+      "expected_error": null,
+      "covers": [
+        "zero_length",
+        "zero_length_winner"
+      ],
+      "note": ""
+    },
+    {
+      "name": "correctness_float32_oblique_3d",
+      "expectation": "success",
+      "tree_points_shape": [
+        1,
+        3,
+        3
+      ],
+      "line_segments_shape": [
+        1,
+        1,
+        2,
+        3
+      ],
+      "dtype": "float32",
+      "line_segments_dtype": null,
+      "input_pattern": "oblique_3d",
+      "seed": 20261001,
+      "tree_points_format": "ND",
+      "line_segments_format": "ND",
+      "expected_error": null,
+      "covers": [
+        "xyz",
+        "endpoint",
+        "interior",
+        "sqrt"
+      ],
+      "note": ""
+    },
+    {
+      "name": "correctness_float32_negative_coordinates",
+      "expectation": "success",
+      "tree_points_shape": [
+        1,
+        3,
+        3
+      ],
+      "line_segments_shape": [
+        1,
+        1,
+        2,
+        3
+      ],
+      "dtype": "float32",
+      "line_segments_dtype": null,
+      "input_pattern": "negative_coordinates",
+      "seed": 20261001,
+      "tree_points_format": "ND",
+      "line_segments_format": "ND",
+      "expected_error": null,
+      "covers": [
+        "negative_coordinates",
+        "endpoint",
+        "sqrt"
+      ],
+      "note": ""
+    },
+    {
+      "name": "correctness_float32_all_zero",
+      "expectation": "success",
+      "tree_points_shape": [
+        2,
+        19,
+        3
+      ],
+      "line_segments_shape": [
+        2,
+        7,
+        2,
+        3
+      ],
+      "dtype": "float32",
+      "line_segments_dtype": null,
+      "input_pattern": "all_zero",
+      "seed": 20261001,
+      "tree_points_format": "ND",
+      "line_segments_format": "ND",
+      "expected_error": null,
+      "covers": [
+        "zero_distance",
+        "zero_length",
+        "lowest_index"
+      ],
+      "note": ""
+    },
+    {
+      "name": "correctness_float32_all_degenerate",
+      "expectation": "success",
+      "tree_points_shape": [
+        1,
+        3,
+        3
+      ],
+      "line_segments_shape": [
+        1,
+        7,
+        2,
+        3
+      ],
+      "dtype": "float32",
+      "line_segments_dtype": null,
+      "input_pattern": "all_degenerate",
+      "seed": 20261001,
+      "tree_points_format": "ND",
+      "line_segments_format": "ND",
+      "expected_error": null,
+      "covers": [
+        "all_zero_length",
+        "last_segment"
+      ],
+      "note": ""
+    },
+    {
+      "name": "correctness_float32_zero_distance_tie",
+      "expectation": "success",
+      "tree_points_shape": [
+        2,
+        33,
+        3
+      ],
+      "line_segments_shape": [
+        2,
+        7,
+        2,
+        3
+      ],
+      "dtype": "float32",
+      "line_segments_dtype": null,
+      "input_pattern": "zero_distance_tie",
+      "seed": 20261001,
+      "tree_points_format": "ND",
+      "line_segments_format": "ND",
+      "expected_error": null,
+      "covers": [
+        "zero_distance",
+        "reversed_segment",
+        "lowest_index"
+      ],
+      "note": ""
+    },
+    {
+      "name": "correctness_float32_cross_tile_tie",
+      "expectation": "success",
+      "tree_points_shape": [
+        1,
+        19,
+        3
+      ],
+      "line_segments_shape": [
+        1,
+        129,
+        2,
+        3
+      ],
+      "dtype": "float32",
+      "line_segments_dtype": null,
+      "input_pattern": "cross_tile_tie",
+      "seed": 20261001,
+      "tree_points_format": "ND",
+      "line_segments_format": "ND",
+      "expected_error": null,
+      "covers": [
+        "cross_tile_tie",
+        "lowest_index",
+        "segment_tail"
+      ],
+      "note": ""
+    },
+    {
+      "name": "correctness_float32_tie_groups",
+      "expectation": "success",
+      "tree_points_shape": [
+        1,
+        3,
+        3
+      ],
+      "line_segments_shape": [
+        1,
+        513,
+        2,
+        3
+      ],
+      "dtype": "float32",
+      "line_segments_dtype": null,
+      "input_pattern": "tie_groups",
+      "seed": 20261001,
+      "tree_points_format": "ND",
+      "line_segments_format": "ND",
+      "expected_error": null,
+      "covers": [
+        "cross_tile_tie",
+        "multiple_winners",
+        "segment_tail"
+      ],
+      "note": ""
+    },
+    {
+      "name": "correctness_float32_last_segment",
+      "expectation": "success",
+      "tree_points_shape": [
+        2,
+        33,
+        3
+      ],
+      "line_segments_shape": [
+        2,
+        513,
+        2,
+        3
+      ],
+      "dtype": "float32",
+      "line_segments_dtype": null,
+      "input_pattern": "last_segment",
+      "seed": 20261001,
+      "tree_points_format": "ND",
+      "line_segments_format": "ND",
+      "expected_error": null,
+      "covers": [
+        "last_segment",
+        "point_tail",
+        "segment_tail"
+      ],
+      "note": ""
+    },
+    {
+      "name": "correctness_float32_tail_positive",
+      "expectation": "success",
+      "tree_points_shape": [
+        4,
+        19,
+        3
+      ],
+      "line_segments_shape": [
+        4,
+        33,
+        2,
+        3
+      ],
+      "dtype": "float32",
+      "line_segments_dtype": null,
+      "input_pattern": "tail_positive",
+      "seed": 20261001,
+      "tree_points_format": "ND",
+      "line_segments_format": "ND",
+      "expected_error": null,
+      "covers": [
+        "padding_not_minimum",
+        "point_tail",
+        "segment_tail"
+      ],
+      "note": ""
+    },
+    {
+      "name": "correctness_float32_batch_isolation",
+      "expectation": "success",
+      "tree_points_shape": [
+        3,
+        3,
+        3
+      ],
+      "line_segments_shape": [
+        3,
+        7,
+        2,
+        3
+      ],
+      "dtype": "float32",
+      "line_segments_dtype": null,
+      "input_pattern": "batch_isolation",
+      "seed": 20261001,
+      "tree_points_format": "ND",
+      "line_segments_format": "ND",
+      "expected_error": null,
+      "covers": [
+        "batch_isolation",
+        "no_broadcast",
+        "different_indices"
+      ],
+      "note": ""
+    },
+    {
+      "name": "correctness_float32_large_coordinates",
+      "expectation": "success",
+      "tree_points_shape": [
+        1,
+        3,
+        3
+      ],
+      "line_segments_shape": [
+        1,
+        1,
+        2,
+        3
+      ],
+      "dtype": "float32",
+      "line_segments_dtype": null,
+      "input_pattern": "large_coordinates",
+      "seed": 20261001,
+      "tree_points_format": "ND",
+      "line_segments_format": "ND",
+      "expected_error": null,
+      "covers": [
+        "large_coordinates",
+        "fp32_intermediates",
+        "sqrt"
+      ],
+      "note": ""
+    },
+    {
+      "name": "correctness_float32_tiny_segment",
+      "expectation": "success",
+      "tree_points_shape": [
+        1,
+        1,
+        3
+      ],
+      "line_segments_shape": [
+        1,
+        2,
+        2,
+        3
+      ],
+      "dtype": "float32",
+      "line_segments_dtype": null,
+      "input_pattern": "tiny_segment",
+      "seed": 20261001,
+      "tree_points_format": "ND",
+      "line_segments_format": "ND",
+      "expected_error": null,
+      "covers": [
+        "tiny_nonzero_length",
+        "no_epsilon_threshold",
+        "fp32_intermediates"
+      ],
+      "note": ""
+    },
+    {
+      "name": "correctness_float32_output_rounding_tie",
+      "expectation": "success",
+      "tree_points_shape": [
+        1,
+        1,
+        3
+      ],
+      "line_segments_shape": [
+        1,
+        2,
+        2,
+        3
+      ],
+      "dtype": "float32",
+      "line_segments_dtype": null,
+      "input_pattern": "output_rounding_tie",
+      "seed": 20261001,
+      "tree_points_format": "ND",
+      "line_segments_format": "ND",
+      "expected_error": null,
+      "covers": [
+        "argmin_before_output_cast",
+        "high_precision_comparison"
+      ],
+      "note": ""
+    },
+    {
+      "name": "correctness_float16_documented_endpoints",
+      "expectation": "success",
+      "tree_points_shape": [
+        1,
+        3,
+        3
+      ],
+      "line_segments_shape": [
+        1,
+        1,
+        2,
+        3
+      ],
+      "dtype": "float16",
+      "line_segments_dtype": null,
+      "input_pattern": "documented_endpoints",
+      "seed": 20261001,
+      "tree_points_format": "ND",
+      "line_segments_format": "ND",
+      "expected_error": null,
+      "covers": [
+        "projection_before_start",
+        "projection_inside",
+        "projection_after_end"
+      ],
+      "note": ""
+    },
+    {
+      "name": "correctness_float16_documented_tie",
+      "expectation": "success",
+      "tree_points_shape": [
+        1,
+        1,
+        3
+      ],
+      "line_segments_shape": [
+        1,
+        2,
+        2,
+        3
+      ],
+      "dtype": "float16",
+      "line_segments_dtype": null,
+      "input_pattern": "documented_tie",
+      "seed": 20261001,
+      "tree_points_format": "ND",
+      "line_segments_format": "ND",
+      "expected_error": null,
+      "covers": [
+        "symmetric_tie",
+        "lowest_index"
+      ],
+      "note": ""
+    },
+    {
+      "name": "correctness_float16_documented_zero_length",
+      "expectation": "success",
+      "tree_points_shape": [
+        1,
+        1,
+        3
+      ],
+      "line_segments_shape": [
+        1,
+        2,
+        2,
+        3
+      ],
+      "dtype": "float16",
+      "line_segments_dtype": null,
+      "input_pattern": "documented_zero_length",
+      "seed": 20261001,
+      "tree_points_format": "ND",
+      "line_segments_format": "ND",
+      "expected_error": null,
+      "covers": [
+        "zero_length",
+        "zero_length_winner"
+      ],
+      "note": ""
+    },
+    {
+      "name": "correctness_float16_oblique_3d",
+      "expectation": "success",
+      "tree_points_shape": [
+        1,
+        3,
+        3
+      ],
+      "line_segments_shape": [
+        1,
+        1,
+        2,
+        3
+      ],
+      "dtype": "float16",
+      "line_segments_dtype": null,
+      "input_pattern": "oblique_3d",
+      "seed": 20261001,
+      "tree_points_format": "ND",
+      "line_segments_format": "ND",
+      "expected_error": null,
+      "covers": [
+        "xyz",
+        "endpoint",
+        "interior",
+        "sqrt"
+      ],
+      "note": ""
+    },
+    {
+      "name": "correctness_float16_negative_coordinates",
+      "expectation": "success",
+      "tree_points_shape": [
+        1,
+        3,
+        3
+      ],
+      "line_segments_shape": [
+        1,
+        1,
+        2,
+        3
+      ],
+      "dtype": "float16",
+      "line_segments_dtype": null,
+      "input_pattern": "negative_coordinates",
+      "seed": 20261001,
+      "tree_points_format": "ND",
+      "line_segments_format": "ND",
+      "expected_error": null,
+      "covers": [
+        "negative_coordinates",
+        "endpoint",
+        "sqrt"
+      ],
+      "note": ""
+    },
+    {
+      "name": "correctness_float16_all_zero",
+      "expectation": "success",
+      "tree_points_shape": [
+        2,
+        19,
+        3
+      ],
+      "line_segments_shape": [
+        2,
+        7,
+        2,
+        3
+      ],
+      "dtype": "float16",
+      "line_segments_dtype": null,
+      "input_pattern": "all_zero",
+      "seed": 20261001,
+      "tree_points_format": "ND",
+      "line_segments_format": "ND",
+      "expected_error": null,
+      "covers": [
+        "zero_distance",
+        "zero_length",
+        "lowest_index"
+      ],
+      "note": ""
+    },
+    {
+      "name": "correctness_float16_all_degenerate",
+      "expectation": "success",
+      "tree_points_shape": [
+        1,
+        3,
+        3
+      ],
+      "line_segments_shape": [
+        1,
+        7,
+        2,
+        3
+      ],
+      "dtype": "float16",
+      "line_segments_dtype": null,
+      "input_pattern": "all_degenerate",
+      "seed": 20261001,
+      "tree_points_format": "ND",
+      "line_segments_format": "ND",
+      "expected_error": null,
+      "covers": [
+        "all_zero_length",
+        "last_segment"
+      ],
+      "note": ""
+    },
+    {
+      "name": "correctness_float16_zero_distance_tie",
+      "expectation": "success",
+      "tree_points_shape": [
+        2,
+        33,
+        3
+      ],
+      "line_segments_shape": [
+        2,
+        7,
+        2,
+        3
+      ],
+      "dtype": "float16",
+      "line_segments_dtype": null,
+      "input_pattern": "zero_distance_tie",
+      "seed": 20261001,
+      "tree_points_format": "ND",
+      "line_segments_format": "ND",
+      "expected_error": null,
+      "covers": [
+        "zero_distance",
+        "reversed_segment",
+        "lowest_index"
+      ],
+      "note": ""
+    },
+    {
+      "name": "correctness_float16_cross_tile_tie",
+      "expectation": "success",
+      "tree_points_shape": [
+        1,
+        19,
+        3
+      ],
+      "line_segments_shape": [
+        1,
+        129,
+        2,
+        3
+      ],
+      "dtype": "float16",
+      "line_segments_dtype": null,
+      "input_pattern": "cross_tile_tie",
+      "seed": 20261001,
+      "tree_points_format": "ND",
+      "line_segments_format": "ND",
+      "expected_error": null,
+      "covers": [
+        "cross_tile_tie",
+        "lowest_index",
+        "segment_tail"
+      ],
+      "note": ""
+    },
+    {
+      "name": "correctness_float16_tie_groups",
+      "expectation": "success",
+      "tree_points_shape": [
+        1,
+        3,
+        3
+      ],
+      "line_segments_shape": [
+        1,
+        513,
+        2,
+        3
+      ],
+      "dtype": "float16",
+      "line_segments_dtype": null,
+      "input_pattern": "tie_groups",
+      "seed": 20261001,
+      "tree_points_format": "ND",
+      "line_segments_format": "ND",
+      "expected_error": null,
+      "covers": [
+        "cross_tile_tie",
+        "multiple_winners",
+        "segment_tail"
+      ],
+      "note": ""
+    },
+    {
+      "name": "correctness_float16_last_segment",
+      "expectation": "success",
+      "tree_points_shape": [
+        2,
+        33,
+        3
+      ],
+      "line_segments_shape": [
+        2,
+        513,
+        2,
+        3
+      ],
+      "dtype": "float16",
+      "line_segments_dtype": null,
+      "input_pattern": "last_segment",
+      "seed": 20261001,
+      "tree_points_format": "ND",
+      "line_segments_format": "ND",
+      "expected_error": null,
+      "covers": [
+        "last_segment",
+        "point_tail",
+        "segment_tail"
+      ],
+      "note": ""
+    },
+    {
+      "name": "correctness_float16_tail_positive",
+      "expectation": "success",
+      "tree_points_shape": [
+        4,
+        19,
+        3
+      ],
+      "line_segments_shape": [
+        4,
+        33,
+        2,
+        3
+      ],
+      "dtype": "float16",
+      "line_segments_dtype": null,
+      "input_pattern": "tail_positive",
+      "seed": 20261001,
+      "tree_points_format": "ND",
+      "line_segments_format": "ND",
+      "expected_error": null,
+      "covers": [
+        "padding_not_minimum",
+        "point_tail",
+        "segment_tail"
+      ],
+      "note": ""
+    },
+    {
+      "name": "correctness_float16_batch_isolation",
+      "expectation": "success",
+      "tree_points_shape": [
+        3,
+        3,
+        3
+      ],
+      "line_segments_shape": [
+        3,
+        7,
+        2,
+        3
+      ],
+      "dtype": "float16",
+      "line_segments_dtype": null,
+      "input_pattern": "batch_isolation",
+      "seed": 20261001,
+      "tree_points_format": "ND",
+      "line_segments_format": "ND",
+      "expected_error": null,
+      "covers": [
+        "batch_isolation",
+        "no_broadcast",
+        "different_indices"
+      ],
+      "note": ""
+    },
+    {
+      "name": "correctness_float16_large_coordinates",
+      "expectation": "success",
+      "tree_points_shape": [
+        1,
+        3,
+        3
+      ],
+      "line_segments_shape": [
+        1,
+        1,
+        2,
+        3
+      ],
+      "dtype": "float16",
+      "line_segments_dtype": null,
+      "input_pattern": "large_coordinates",
+      "seed": 20261001,
+      "tree_points_format": "ND",
+      "line_segments_format": "ND",
+      "expected_error": null,
+      "covers": [
+        "large_coordinates",
+        "fp32_intermediates",
+        "sqrt"
+      ],
+      "note": ""
+    },
+    {
+      "name": "correctness_float16_tiny_segment",
+      "expectation": "success",
+      "tree_points_shape": [
+        1,
+        1,
+        3
+      ],
+      "line_segments_shape": [
+        1,
+        2,
+        2,
+        3
+      ],
+      "dtype": "float16",
+      "line_segments_dtype": null,
+      "input_pattern": "tiny_segment",
+      "seed": 20261001,
+      "tree_points_format": "ND",
+      "line_segments_format": "ND",
+      "expected_error": null,
+      "covers": [
+        "tiny_nonzero_length",
+        "no_epsilon_threshold",
+        "fp32_intermediates"
+      ],
+      "note": ""
+    },
+    {
+      "name": "correctness_float16_output_rounding_tie",
+      "expectation": "success",
+      "tree_points_shape": [
+        1,
+        1,
+        3
+      ],
+      "line_segments_shape": [
+        1,
+        2,
+        2,
+        3
+      ],
+      "dtype": "float16",
+      "line_segments_dtype": null,
+      "input_pattern": "output_rounding_tie",
+      "seed": 20261001,
+      "tree_points_format": "ND",
+      "line_segments_format": "ND",
+      "expected_error": null,
+      "covers": [
+        "argmin_before_output_cast",
+        "high_precision_comparison"
+      ],
+      "note": ""
+    },
+    {
+      "name": "correctness_fp16_quantized_zero_length",
+      "expectation": "success",
+      "tree_points_shape": [
+        1,
+        3,
+        3
+      ],
+      "line_segments_shape": [
+        1,
+        1,
+        2,
+        3
+      ],
+      "dtype": "float16",
+      "line_segments_dtype": null,
+      "input_pattern": "quantized_zero_length",
+      "seed": 20261001,
+      "tree_points_format": "ND",
+      "line_segments_format": "ND",
+      "expected_error": null,
+      "covers": [
+        "quantized_zero_length",
+        "zero_length",
+        "no_divide_by_zero"
+      ],
+      "note": ""
+    },
+    {
+      "name": "correctness_float32_seeded_oblique",
+      "expectation": "success",
+      "tree_points_shape": [
+        2,
+        127,
+        3
+      ],
+      "line_segments_shape": [
+        2,
+        31,
+        2,
+        3
+      ],
+      "dtype": "float32",
+      "line_segments_dtype": null,
+      "input_pattern": "separated_random",
+      "seed": 73019,
+      "tree_points_format": "ND",
+      "line_segments_format": "ND",
+      "expected_error": null,
+      "covers": [
+        "seeded_random",
+        "xyz",
+        "point_tail",
+        "segment_tail"
+      ],
+      "note": ""
+    },
+    {
+      "name": "correctness_float16_seeded_oblique",
+      "expectation": "success",
+      "tree_points_shape": [
+        2,
+        127,
+        3
+      ],
+      "line_segments_shape": [
+        2,
+        31,
+        2,
+        3
+      ],
+      "dtype": "float16",
+      "line_segments_dtype": null,
+      "input_pattern": "separated_random",
+      "seed": 73019,
+      "tree_points_format": "ND",
+      "line_segments_format": "ND",
+      "expected_error": null,
+      "covers": [
+        "seeded_random",
+        "xyz",
+        "point_tail",
+        "segment_tail"
+      ],
+      "note": ""
+    }
+  ]
+}

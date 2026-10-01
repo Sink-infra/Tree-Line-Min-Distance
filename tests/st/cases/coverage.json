@@ -1,0 +1,1229 @@
+{
+  "schema_version": 1,
+  "operator": "TreeLineMinDistance",
+  "category": "coverage",
+  "cases": [
+    {
+      "name": "coverage_float32_singleton",
+      "expectation": "success",
+      "tree_points_shape": [
+        1,
+        1,
+        3
+      ],
+      "line_segments_shape": [
+        1,
+        1,
+        2,
+        3
+      ],
+      "dtype": "float32",
+      "line_segments_dtype": null,
+      "input_pattern": "separated_random",
+      "seed": 20261001,
+      "tree_points_format": "ND",
+      "line_segments_format": "ND",
+      "expected_error": null,
+      "covers": [
+        "single_batch",
+        "single_point",
+        "single_segment"
+      ],
+      "note": ""
+    },
+    {
+      "name": "coverage_float32_n3_m7",
+      "expectation": "success",
+      "tree_points_shape": [
+        1,
+        3,
+        3
+      ],
+      "line_segments_shape": [
+        1,
+        7,
+        2,
+        3
+      ],
+      "dtype": "float32",
+      "line_segments_dtype": null,
+      "input_pattern": "separated_random",
+      "seed": 20261002,
+      "tree_points_format": "ND",
+      "line_segments_format": "ND",
+      "expected_error": null,
+      "covers": [
+        "point_tail",
+        "segment_tail"
+      ],
+      "note": ""
+    },
+    {
+      "name": "coverage_float32_n19_m19",
+      "expectation": "success",
+      "tree_points_shape": [
+        2,
+        19,
+        3
+      ],
+      "line_segments_shape": [
+        2,
+        19,
+        2,
+        3
+      ],
+      "dtype": "float32",
+      "line_segments_dtype": null,
+      "input_pattern": "separated_random",
+      "seed": 20261003,
+      "tree_points_format": "ND",
+      "line_segments_format": "ND",
+      "expected_error": null,
+      "covers": [
+        "multi_batch",
+        "point_tail",
+        "segment_tail"
+      ],
+      "note": ""
+    },
+    {
+      "name": "coverage_float32_n33_m31",
+      "expectation": "success",
+      "tree_points_shape": [
+        3,
+        33,
+        3
+      ],
+      "line_segments_shape": [
+        3,
+        31,
+        2,
+        3
+      ],
+      "dtype": "float32",
+      "line_segments_dtype": null,
+      "input_pattern": "separated_random",
+      "seed": 20261004,
+      "tree_points_format": "ND",
+      "line_segments_format": "ND",
+      "expected_error": null,
+      "covers": [
+        "point_tail",
+        "segment_tail"
+      ],
+      "note": ""
+    },
+    {
+      "name": "coverage_float32_n127_m33",
+      "expectation": "success",
+      "tree_points_shape": [
+        4,
+        127,
+        3
+      ],
+      "line_segments_shape": [
+        4,
+        33,
+        2,
+        3
+      ],
+      "dtype": "float32",
+      "line_segments_dtype": null,
+      "input_pattern": "separated_random",
+      "seed": 20261005,
+      "tree_points_format": "ND",
+      "line_segments_format": "ND",
+      "expected_error": null,
+      "covers": [
+        "point_tail",
+        "segment_tail"
+      ],
+      "note": ""
+    },
+    {
+      "name": "coverage_float32_n1003_m129",
+      "expectation": "success",
+      "tree_points_shape": [
+        2,
+        1003,
+        3
+      ],
+      "line_segments_shape": [
+        2,
+        129,
+        2,
+        3
+      ],
+      "dtype": "float32",
+      "line_segments_dtype": null,
+      "input_pattern": "separated_random",
+      "seed": 20261006,
+      "tree_points_format": "ND",
+      "line_segments_format": "ND",
+      "expected_error": null,
+      "covers": [
+        "point_tail",
+        "segment_tail"
+      ],
+      "note": ""
+    },
+    {
+      "name": "coverage_float32_n4097_m513",
+      "expectation": "success",
+      "tree_points_shape": [
+        1,
+        4097,
+        3
+      ],
+      "line_segments_shape": [
+        1,
+        513,
+        2,
+        3
+      ],
+      "dtype": "float32",
+      "line_segments_dtype": null,
+      "input_pattern": "separated_random",
+      "seed": 20261007,
+      "tree_points_format": "ND",
+      "line_segments_format": "ND",
+      "expected_error": null,
+      "covers": [
+        "point_tail",
+        "segment_tail",
+        "large_pairs"
+      ],
+      "note": ""
+    },
+    {
+      "name": "coverage_float32_n16384_m1",
+      "expectation": "success",
+      "tree_points_shape": [
+        1,
+        16384,
+        3
+      ],
+      "line_segments_shape": [
+        1,
+        1,
+        2,
+        3
+      ],
+      "dtype": "float32",
+      "line_segments_dtype": null,
+      "input_pattern": "separated_random",
+      "seed": 20261008,
+      "tree_points_format": "ND",
+      "line_segments_format": "ND",
+      "expected_error": null,
+      "covers": [
+        "max_n",
+        "single_segment"
+      ],
+      "note": ""
+    },
+    {
+      "name": "coverage_float32_n1_m1024",
+      "expectation": "success",
+      "tree_points_shape": [
+        8,
+        1,
+        3
+      ],
+      "line_segments_shape": [
+        8,
+        1024,
+        2,
+        3
+      ],
+      "dtype": "float32",
+      "line_segments_dtype": null,
+      "input_pattern": "separated_random",
+      "seed": 20261009,
+      "tree_points_format": "ND",
+      "line_segments_format": "ND",
+      "expected_error": null,
+      "covers": [
+        "max_b",
+        "single_point",
+        "max_m"
+      ],
+      "note": ""
+    },
+    {
+      "name": "coverage_float32_max_dimensions",
+      "expectation": "success",
+      "tree_points_shape": [
+        8,
+        16384,
+        3
+      ],
+      "line_segments_shape": [
+        8,
+        1024,
+        2,
+        3
+      ],
+      "dtype": "float32",
+      "line_segments_dtype": null,
+      "input_pattern": "separated_random",
+      "seed": 20261010,
+      "tree_points_format": "ND",
+      "line_segments_format": "ND",
+      "expected_error": null,
+      "covers": [
+        "max_b",
+        "max_n",
+        "max_m",
+        "large_pairs"
+      ],
+      "note": ""
+    },
+    {
+      "name": "coverage_float16_singleton",
+      "expectation": "success",
+      "tree_points_shape": [
+        1,
+        1,
+        3
+      ],
+      "line_segments_shape": [
+        1,
+        1,
+        2,
+        3
+      ],
+      "dtype": "float16",
+      "line_segments_dtype": null,
+      "input_pattern": "separated_random",
+      "seed": 20261001,
+      "tree_points_format": "ND",
+      "line_segments_format": "ND",
+      "expected_error": null,
+      "covers": [
+        "single_batch",
+        "single_point",
+        "single_segment"
+      ],
+      "note": ""
+    },
+    {
+      "name": "coverage_float16_n3_m7",
+      "expectation": "success",
+      "tree_points_shape": [
+        1,
+        3,
+        3
+      ],
+      "line_segments_shape": [
+        1,
+        7,
+        2,
+        3
+      ],
+      "dtype": "float16",
+      "line_segments_dtype": null,
+      "input_pattern": "separated_random",
+      "seed": 20261002,
+      "tree_points_format": "ND",
+      "line_segments_format": "ND",
+      "expected_error": null,
+      "covers": [
+        "point_tail",
+        "segment_tail"
+      ],
+      "note": ""
+    },
+    {
+      "name": "coverage_float16_n19_m19",
+      "expectation": "success",
+      "tree_points_shape": [
+        2,
+        19,
+        3
+      ],
+      "line_segments_shape": [
+        2,
+        19,
+        2,
+        3
+      ],
+      "dtype": "float16",
+      "line_segments_dtype": null,
+      "input_pattern": "separated_random",
+      "seed": 20261003,
+      "tree_points_format": "ND",
+      "line_segments_format": "ND",
+      "expected_error": null,
+      "covers": [
+        "multi_batch",
+        "point_tail",
+        "segment_tail"
+      ],
+      "note": ""
+    },
+    {
+      "name": "coverage_float16_n33_m31",
+      "expectation": "success",
+      "tree_points_shape": [
+        3,
+        33,
+        3
+      ],
+      "line_segments_shape": [
+        3,
+        31,
+        2,
+        3
+      ],
+      "dtype": "float16",
+      "line_segments_dtype": null,
+      "input_pattern": "separated_random",
+      "seed": 20261004,
+      "tree_points_format": "ND",
+      "line_segments_format": "ND",
+      "expected_error": null,
+      "covers": [
+        "point_tail",
+        "segment_tail"
+      ],
+      "note": ""
+    },
+    {
+      "name": "coverage_float16_n127_m33",
+      "expectation": "success",
+      "tree_points_shape": [
+        4,
+        127,
+        3
+      ],
+      "line_segments_shape": [
+        4,
+        33,
+        2,
+        3
+      ],
+      "dtype": "float16",
+      "line_segments_dtype": null,
+      "input_pattern": "separated_random",
+      "seed": 20261005,
+      "tree_points_format": "ND",
+      "line_segments_format": "ND",
+      "expected_error": null,
+      "covers": [
+        "point_tail",
+        "segment_tail"
+      ],
+      "note": ""
+    },
+    {
+      "name": "coverage_float16_n1003_m129",
+      "expectation": "success",
+      "tree_points_shape": [
+        2,
+        1003,
+        3
+      ],
+      "line_segments_shape": [
+        2,
+        129,
+        2,
+        3
+      ],
+      "dtype": "float16",
+      "line_segments_dtype": null,
+      "input_pattern": "separated_random",
+      "seed": 20261006,
+      "tree_points_format": "ND",
+      "line_segments_format": "ND",
+      "expected_error": null,
+      "covers": [
+        "point_tail",
+        "segment_tail"
+      ],
+      "note": ""
+    },
+    {
+      "name": "coverage_float16_n4097_m513",
+      "expectation": "success",
+      "tree_points_shape": [
+        1,
+        4097,
+        3
+      ],
+      "line_segments_shape": [
+        1,
+        513,
+        2,
+        3
+      ],
+      "dtype": "float16",
+      "line_segments_dtype": null,
+      "input_pattern": "separated_random",
+      "seed": 20261007,
+      "tree_points_format": "ND",
+      "line_segments_format": "ND",
+      "expected_error": null,
+      "covers": [
+        "point_tail",
+        "segment_tail",
+        "large_pairs"
+      ],
+      "note": ""
+    },
+    {
+      "name": "coverage_float16_n16384_m1",
+      "expectation": "success",
+      "tree_points_shape": [
+        1,
+        16384,
+        3
+      ],
+      "line_segments_shape": [
+        1,
+        1,
+        2,
+        3
+      ],
+      "dtype": "float16",
+      "line_segments_dtype": null,
+      "input_pattern": "separated_random",
+      "seed": 20261008,
+      "tree_points_format": "ND",
+      "line_segments_format": "ND",
+      "expected_error": null,
+      "covers": [
+        "max_n",
+        "single_segment"
+      ],
+      "note": ""
+    },
+    {
+      "name": "coverage_float16_n1_m1024",
+      "expectation": "success",
+      "tree_points_shape": [
+        8,
+        1,
+        3
+      ],
+      "line_segments_shape": [
+        8,
+        1024,
+        2,
+        3
+      ],
+      "dtype": "float16",
+      "line_segments_dtype": null,
+      "input_pattern": "separated_random",
+      "seed": 20261009,
+      "tree_points_format": "ND",
+      "line_segments_format": "ND",
+      "expected_error": null,
+      "covers": [
+        "max_b",
+        "single_point",
+        "max_m"
+      ],
+      "note": ""
+    },
+    {
+      "name": "coverage_float16_max_dimensions",
+      "expectation": "success",
+      "tree_points_shape": [
+        8,
+        16384,
+        3
+      ],
+      "line_segments_shape": [
+        8,
+        1024,
+        2,
+        3
+      ],
+      "dtype": "float16",
+      "line_segments_dtype": null,
+      "input_pattern": "separated_random",
+      "seed": 20261010,
+      "tree_points_format": "ND",
+      "line_segments_format": "ND",
+      "expected_error": null,
+      "covers": [
+        "max_b",
+        "max_n",
+        "max_m",
+        "large_pairs"
+      ],
+      "note": ""
+    },
+    {
+      "name": "coverage_reject_points_rank",
+      "expectation": "reject",
+      "tree_points_shape": [
+        3,
+        3
+      ],
+      "line_segments_shape": [
+        2,
+        7,
+        2,
+        3
+      ],
+      "dtype": "float32",
+      "line_segments_dtype": null,
+      "input_pattern": "separated_random",
+      "seed": 20261001,
+      "tree_points_format": "ND",
+      "line_segments_format": "ND",
+      "expected_error": "TREE_POINTS_RANK",
+      "covers": [],
+      "note": ""
+    },
+    {
+      "name": "coverage_reject_segments_rank",
+      "expectation": "reject",
+      "tree_points_shape": [
+        2,
+        3,
+        3
+      ],
+      "line_segments_shape": [
+        2,
+        7,
+        6
+      ],
+      "dtype": "float32",
+      "line_segments_dtype": null,
+      "input_pattern": "separated_random",
+      "seed": 20261001,
+      "tree_points_format": "ND",
+      "line_segments_format": "ND",
+      "expected_error": "LINE_SEGMENTS_RANK",
+      "covers": [],
+      "note": ""
+    },
+    {
+      "name": "coverage_reject_points_xyz",
+      "expectation": "reject",
+      "tree_points_shape": [
+        2,
+        3,
+        4
+      ],
+      "line_segments_shape": [
+        2,
+        7,
+        2,
+        3
+      ],
+      "dtype": "float32",
+      "line_segments_dtype": null,
+      "input_pattern": "separated_random",
+      "seed": 20261001,
+      "tree_points_format": "ND",
+      "line_segments_format": "ND",
+      "expected_error": "TREE_POINTS_XYZ",
+      "covers": [],
+      "note": ""
+    },
+    {
+      "name": "coverage_reject_segments_xyz",
+      "expectation": "reject",
+      "tree_points_shape": [
+        2,
+        3,
+        3
+      ],
+      "line_segments_shape": [
+        2,
+        7,
+        2,
+        4
+      ],
+      "dtype": "float32",
+      "line_segments_dtype": null,
+      "input_pattern": "separated_random",
+      "seed": 20261001,
+      "tree_points_format": "ND",
+      "line_segments_format": "ND",
+      "expected_error": "LINE_SEGMENTS_XYZ",
+      "covers": [],
+      "note": ""
+    },
+    {
+      "name": "coverage_reject_endpoints",
+      "expectation": "reject",
+      "tree_points_shape": [
+        2,
+        3,
+        3
+      ],
+      "line_segments_shape": [
+        2,
+        7,
+        3,
+        3
+      ],
+      "dtype": "float32",
+      "line_segments_dtype": null,
+      "input_pattern": "separated_random",
+      "seed": 20261001,
+      "tree_points_format": "ND",
+      "line_segments_format": "ND",
+      "expected_error": "LINE_SEGMENTS_ENDPOINTS",
+      "covers": [],
+      "note": ""
+    },
+    {
+      "name": "coverage_reject_batch_broadcast",
+      "expectation": "reject",
+      "tree_points_shape": [
+        2,
+        3,
+        3
+      ],
+      "line_segments_shape": [
+        1,
+        7,
+        2,
+        3
+      ],
+      "dtype": "float32",
+      "line_segments_dtype": null,
+      "input_pattern": "separated_random",
+      "seed": 20261001,
+      "tree_points_format": "ND",
+      "line_segments_format": "ND",
+      "expected_error": "BATCH_MISMATCH",
+      "covers": [],
+      "note": ""
+    },
+    {
+      "name": "coverage_reject_b_zero",
+      "expectation": "reject",
+      "tree_points_shape": [
+        0,
+        3,
+        3
+      ],
+      "line_segments_shape": [
+        0,
+        7,
+        2,
+        3
+      ],
+      "dtype": "float32",
+      "line_segments_dtype": null,
+      "input_pattern": "separated_random",
+      "seed": 20261001,
+      "tree_points_format": "ND",
+      "line_segments_format": "ND",
+      "expected_error": "B_RANGE",
+      "covers": [],
+      "note": ""
+    },
+    {
+      "name": "coverage_reject_b_nine",
+      "expectation": "reject",
+      "tree_points_shape": [
+        9,
+        3,
+        3
+      ],
+      "line_segments_shape": [
+        9,
+        7,
+        2,
+        3
+      ],
+      "dtype": "float32",
+      "line_segments_dtype": null,
+      "input_pattern": "separated_random",
+      "seed": 20261001,
+      "tree_points_format": "ND",
+      "line_segments_format": "ND",
+      "expected_error": "B_RANGE",
+      "covers": [],
+      "note": ""
+    },
+    {
+      "name": "coverage_reject_n_zero",
+      "expectation": "reject",
+      "tree_points_shape": [
+        2,
+        0,
+        3
+      ],
+      "line_segments_shape": [
+        2,
+        7,
+        2,
+        3
+      ],
+      "dtype": "float32",
+      "line_segments_dtype": null,
+      "input_pattern": "separated_random",
+      "seed": 20261001,
+      "tree_points_format": "ND",
+      "line_segments_format": "ND",
+      "expected_error": "N_RANGE",
+      "covers": [],
+      "note": ""
+    },
+    {
+      "name": "coverage_reject_n_too_large",
+      "expectation": "reject",
+      "tree_points_shape": [
+        2,
+        16385,
+        3
+      ],
+      "line_segments_shape": [
+        2,
+        7,
+        2,
+        3
+      ],
+      "dtype": "float32",
+      "line_segments_dtype": null,
+      "input_pattern": "separated_random",
+      "seed": 20261001,
+      "tree_points_format": "ND",
+      "line_segments_format": "ND",
+      "expected_error": "N_RANGE",
+      "covers": [],
+      "note": ""
+    },
+    {
+      "name": "coverage_reject_m_zero",
+      "expectation": "reject",
+      "tree_points_shape": [
+        2,
+        3,
+        3
+      ],
+      "line_segments_shape": [
+        2,
+        0,
+        2,
+        3
+      ],
+      "dtype": "float32",
+      "line_segments_dtype": null,
+      "input_pattern": "separated_random",
+      "seed": 20261001,
+      "tree_points_format": "ND",
+      "line_segments_format": "ND",
+      "expected_error": "M_RANGE",
+      "covers": [],
+      "note": ""
+    },
+    {
+      "name": "coverage_reject_m_too_large",
+      "expectation": "reject",
+      "tree_points_shape": [
+        2,
+        3,
+        3
+      ],
+      "line_segments_shape": [
+        2,
+        1025,
+        2,
+        3
+      ],
+      "dtype": "float32",
+      "line_segments_dtype": null,
+      "input_pattern": "separated_random",
+      "seed": 20261001,
+      "tree_points_format": "ND",
+      "line_segments_format": "ND",
+      "expected_error": "M_RANGE",
+      "covers": [],
+      "note": ""
+    },
+    {
+      "name": "coverage_reject_points_int32",
+      "expectation": "reject",
+      "tree_points_shape": [
+        2,
+        3,
+        3
+      ],
+      "line_segments_shape": [
+        2,
+        7,
+        2,
+        3
+      ],
+      "dtype": "int32",
+      "line_segments_dtype": "float32",
+      "input_pattern": "separated_random",
+      "seed": 20261001,
+      "tree_points_format": "ND",
+      "line_segments_format": "ND",
+      "expected_error": "TREE_POINTS_DTYPE",
+      "covers": [],
+      "note": ""
+    },
+    {
+      "name": "coverage_reject_points_float64",
+      "expectation": "reject",
+      "tree_points_shape": [
+        2,
+        3,
+        3
+      ],
+      "line_segments_shape": [
+        2,
+        7,
+        2,
+        3
+      ],
+      "dtype": "float64",
+      "line_segments_dtype": "float32",
+      "input_pattern": "separated_random",
+      "seed": 20261001,
+      "tree_points_format": "ND",
+      "line_segments_format": "ND",
+      "expected_error": "TREE_POINTS_DTYPE",
+      "covers": [],
+      "note": ""
+    },
+    {
+      "name": "coverage_reject_segments_int32",
+      "expectation": "reject",
+      "tree_points_shape": [
+        2,
+        3,
+        3
+      ],
+      "line_segments_shape": [
+        2,
+        7,
+        2,
+        3
+      ],
+      "dtype": "float32",
+      "line_segments_dtype": "int32",
+      "input_pattern": "separated_random",
+      "seed": 20261001,
+      "tree_points_format": "ND",
+      "line_segments_format": "ND",
+      "expected_error": "LINE_SEGMENTS_DTYPE",
+      "covers": [],
+      "note": ""
+    },
+    {
+      "name": "coverage_reject_segments_float64",
+      "expectation": "reject",
+      "tree_points_shape": [
+        2,
+        3,
+        3
+      ],
+      "line_segments_shape": [
+        2,
+        7,
+        2,
+        3
+      ],
+      "dtype": "float32",
+      "line_segments_dtype": "float64",
+      "input_pattern": "separated_random",
+      "seed": 20261001,
+      "tree_points_format": "ND",
+      "line_segments_format": "ND",
+      "expected_error": "LINE_SEGMENTS_DTYPE",
+      "covers": [],
+      "note": ""
+    },
+    {
+      "name": "coverage_reject_points_int64",
+      "expectation": "reject",
+      "tree_points_shape": [
+        2,
+        3,
+        3
+      ],
+      "line_segments_shape": [
+        2,
+        7,
+        2,
+        3
+      ],
+      "dtype": "int64",
+      "line_segments_dtype": "float32",
+      "input_pattern": "separated_random",
+      "seed": 20261001,
+      "tree_points_format": "ND",
+      "line_segments_format": "ND",
+      "expected_error": "TREE_POINTS_DTYPE",
+      "covers": [],
+      "note": ""
+    },
+    {
+      "name": "coverage_reject_segments_int64",
+      "expectation": "reject",
+      "tree_points_shape": [
+        2,
+        3,
+        3
+      ],
+      "line_segments_shape": [
+        2,
+        7,
+        2,
+        3
+      ],
+      "dtype": "float32",
+      "line_segments_dtype": "int64",
+      "input_pattern": "separated_random",
+      "seed": 20261001,
+      "tree_points_format": "ND",
+      "line_segments_format": "ND",
+      "expected_error": "LINE_SEGMENTS_DTYPE",
+      "covers": [],
+      "note": ""
+    },
+    {
+      "name": "coverage_reject_mixed_fp32_fp16",
+      "expectation": "reject",
+      "tree_points_shape": [
+        2,
+        3,
+        3
+      ],
+      "line_segments_shape": [
+        2,
+        7,
+        2,
+        3
+      ],
+      "dtype": "float32",
+      "line_segments_dtype": "float16",
+      "input_pattern": "separated_random",
+      "seed": 20261001,
+      "tree_points_format": "ND",
+      "line_segments_format": "ND",
+      "expected_error": "DTYPE_MISMATCH",
+      "covers": [],
+      "note": ""
+    },
+    {
+      "name": "coverage_reject_mixed_fp16_fp32",
+      "expectation": "reject",
+      "tree_points_shape": [
+        2,
+        3,
+        3
+      ],
+      "line_segments_shape": [
+        2,
+        7,
+        2,
+        3
+      ],
+      "dtype": "float16",
+      "line_segments_dtype": "float32",
+      "input_pattern": "separated_random",
+      "seed": 20261001,
+      "tree_points_format": "ND",
+      "line_segments_format": "ND",
+      "expected_error": "DTYPE_MISMATCH",
+      "covers": [],
+      "note": ""
+    },
+    {
+      "name": "coverage_reject_points_format",
+      "expectation": "reject",
+      "tree_points_shape": [
+        2,
+        3,
+        3
+      ],
+      "line_segments_shape": [
+        2,
+        7,
+        2,
+        3
+      ],
+      "dtype": "float32",
+      "line_segments_dtype": null,
+      "input_pattern": "separated_random",
+      "seed": 20261001,
+      "tree_points_format": "NCHW",
+      "line_segments_format": "ND",
+      "expected_error": "TREE_POINTS_FORMAT",
+      "covers": [],
+      "note": ""
+    },
+    {
+      "name": "coverage_reject_segments_format",
+      "expectation": "reject",
+      "tree_points_shape": [
+        2,
+        3,
+        3
+      ],
+      "line_segments_shape": [
+        2,
+        7,
+        2,
+        3
+      ],
+      "dtype": "float32",
+      "line_segments_dtype": null,
+      "input_pattern": "separated_random",
+      "seed": 20261001,
+      "tree_points_format": "ND",
+      "line_segments_format": "NCHW",
+      "expected_error": "LINE_SEGMENTS_FORMAT",
+      "covers": [],
+      "note": ""
+    },
+    {
+      "name": "coverage_reject_points_nan",
+      "expectation": "reject",
+      "tree_points_shape": [
+        2,
+        3,
+        3
+      ],
+      "line_segments_shape": [
+        2,
+        7,
+        2,
+        3
+      ],
+      "dtype": "float32",
+      "line_segments_dtype": null,
+      "input_pattern": "nonfinite_points_nan",
+      "seed": 20261001,
+      "tree_points_format": "ND",
+      "line_segments_format": "ND",
+      "expected_error": "TREE_POINTS_NONFINITE",
+      "covers": [],
+      "note": ""
+    },
+    {
+      "name": "coverage_reject_points_posinf",
+      "expectation": "reject",
+      "tree_points_shape": [
+        2,
+        3,
+        3
+      ],
+      "line_segments_shape": [
+        2,
+        7,
+        2,
+        3
+      ],
+      "dtype": "float32",
+      "line_segments_dtype": null,
+      "input_pattern": "nonfinite_points_posinf",
+      "seed": 20261001,
+      "tree_points_format": "ND",
+      "line_segments_format": "ND",
+      "expected_error": "TREE_POINTS_NONFINITE",
+      "covers": [],
+      "note": ""
+    },
+    {
+      "name": "coverage_reject_points_neginf",
+      "expectation": "reject",
+      "tree_points_shape": [
+        2,
+        3,
+        3
+      ],
+      "line_segments_shape": [
+        2,
+        7,
+        2,
+        3
+      ],
+      "dtype": "float32",
+      "line_segments_dtype": null,
+      "input_pattern": "nonfinite_points_neginf",
+      "seed": 20261001,
+      "tree_points_format": "ND",
+      "line_segments_format": "ND",
+      "expected_error": "TREE_POINTS_NONFINITE",
+      "covers": [],
+      "note": ""
+    },
+    {
+      "name": "coverage_reject_segments_nan",
+      "expectation": "reject",
+      "tree_points_shape": [
+        2,
+        3,
+        3
+      ],
+      "line_segments_shape": [
+        2,
+        7,
+        2,
+        3
+      ],
+      "dtype": "float32",
+      "line_segments_dtype": null,
+      "input_pattern": "nonfinite_segments_nan",
+      "seed": 20261001,
+      "tree_points_format": "ND",
+      "line_segments_format": "ND",
+      "expected_error": "LINE_SEGMENTS_NONFINITE",
+      "covers": [],
+      "note": ""
+    },
+    {
+      "name": "coverage_reject_segments_posinf",
+      "expectation": "reject",
+      "tree_points_shape": [
+        2,
+        3,
+        3
+      ],
+      "line_segments_shape": [
+        2,
+        7,
+        2,
+        3
+      ],
+      "dtype": "float32",
+      "line_segments_dtype": null,
+      "input_pattern": "nonfinite_segments_posinf",
+      "seed": 20261001,
+      "tree_points_format": "ND",
+      "line_segments_format": "ND",
+      "expected_error": "LINE_SEGMENTS_NONFINITE",
+      "covers": [],
+      "note": ""
+    },
+    {
+      "name": "coverage_reject_segments_neginf",
+      "expectation": "reject",
+      "tree_points_shape": [
+        2,
+        3,
+        3
+      ],
+      "line_segments_shape": [
+        2,
+        7,
+        2,
+        3
+      ],
+      "dtype": "float32",
+      "line_segments_dtype": null,
+      "input_pattern": "nonfinite_segments_neginf",
+      "seed": 20261001,
+      "tree_points_format": "ND",
+      "line_segments_format": "ND",
+      "expected_error": "LINE_SEGMENTS_NONFINITE",
+      "covers": [],
+      "note": ""
+    }
+  ]
+}
