@@ -58,7 +58,7 @@ public:
                     Mul(len,ux,ux,m); Mul(tmp,uy,uy,m); Add(len,len,tmp,m);
                     Mul(tmp,uz,uz,m); Add(len,len,tmp,m);
                     auto mask=pointBuf.Get<uint8_t>();
-                    CompareScalar(mask,len,0.0f,CMPMODE::NE,m);
+                    CompareScalar(mask,len,0.0f,CMPMODE::NE,width);
                     Select(len,mask,len,1.0f,SELMODE::VSEL_TENSOR_SCALAR_MODE,m);
                 } else {
                 for(uint32_t j=0;j<m;++j) {
