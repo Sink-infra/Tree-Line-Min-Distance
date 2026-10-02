@@ -4,23 +4,24 @@
 using namespace AscendC;
 template <typename T>
 class KernelTreeLineMinDistance {
-    TPipe pipe;
+    TPipe *pipe;
     TBuf<TPosition::VECCALC> rawBuf,pointBuf,arraysBuf,workBuf,resultBuf,outputBuf;
     GlobalTensor<T> points,segments,distances;
     GlobalTensor<int32_t> indices;
     uint32_t b,n,m,width;
     __aicore__ inline void Sync() { PipeBarrier<PIPE_ALL>(); }
 public:
-    __aicore__ inline void Init(GM_ADDR p,GM_ADDR s,GM_ADDR d,GM_ADDR i,TreeLineMinDistanceTilingData t) {
+    __aicore__ inline void Init(GM_ADDR p,GM_ADDR s,GM_ADDR d,GM_ADDR i,TreeLineMinDistanceTilingData t,TPipe *pipeIn) {
+        pipe=pipeIn;
         b=t.b; n=t.n; m=t.m; width=(m+63)/64*64;
         points.SetGlobalBuffer((__gm__ T*)p); segments.SetGlobalBuffer((__gm__ T*)s);
         distances.SetGlobalBuffer((__gm__ T*)d); indices.SetGlobalBuffer((__gm__ int32_t*)i);
-        pipe.InitBuffer(rawBuf,6*1024*4);
-        pipe.InitBuffer(pointBuf,96*4);
-        pipe.InitBuffer(arraysBuf,7*width*4);
-        pipe.InitBuffer(workBuf,7*width*4);
-        pipe.InitBuffer(resultBuf,(width+64)*4);
-        pipe.InitBuffer(outputBuf,32*12);
+        pipe->InitBuffer(rawBuf,6*1024*4);
+        pipe->InitBuffer(pointBuf,96*4);
+        pipe->InitBuffer(arraysBuf,7*width*4);
+        pipe->InitBuffer(workBuf,7*width*4);
+        pipe->InitBuffer(resultBuf,(width+64)*4);
+        pipe->InitBuffer(outputBuf,32*12);
     }
     __aicore__ inline void Process() {
         auto raw=rawBuf.Get<T>();
@@ -103,6 +104,7 @@ template <typename DT_TREE_POINTS>
 __global__ __aicore__ void tree_line_min_distance(GM_ADDR tree_points,GM_ADDR line_segments,GM_ADDR min_distance,GM_ADDR nearest_segment_idx,GM_ADDR workspace,GM_ADDR tiling) {
     REGISTER_TILING_DEFAULT(TreeLineMinDistanceTilingData);
     GET_TILING_DATA_WITH_STRUCT(TreeLineMinDistanceTilingData,t,tiling);
+    TPipe pipe;
     KernelTreeLineMinDistance<DT_TREE_POINTS> op;
-    op.Init(tree_points,line_segments,min_distance,nearest_segment_idx,t); op.Process();
+    op.Init(tree_points,line_segments,min_distance,nearest_segment_idx,t,&pipe); op.Process();
 }
