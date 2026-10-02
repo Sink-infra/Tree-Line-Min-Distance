@@ -28,6 +28,7 @@ static ge::graphStatus TilingFunc(gert::TilingContext *context) {
     context->GetWorkspaceSizes(1)[0]=0;
     return ge::GRAPH_SUCCESS;
 }
+IMPL_OP_OPTILING(TreeLineMinDistance).Tiling(TilingFunc);
 }
 namespace ge {
 static graphStatus InferShape(gert::InferShapeContext *context) {
