@@ -40,7 +40,7 @@ public:
             uint32_t batch=task/blocks,start=(task%blocks)*32,count=n-start;
             if(count>32) count=32;
             if(cached!=batch) {
-                DataCopyPad(raw,segments[batch*m*6],{1,m*6*sizeof(T),0,0,0},{false,0,0,0}); Sync();
+                DataCopyPad(raw,segments[batch*m*6],{1,uint32_t(m*6*sizeof(T)),0,0,0},{false,0,0,0}); Sync();
                 for(uint32_t j=0;j<m;++j) {
                     float x=(float)raw.GetValue(6*j),y=(float)raw.GetValue(6*j+1),z=(float)raw.GetValue(6*j+2);
                     float vx=(float)raw.GetValue(6*j+3)-x,vy=(float)raw.GetValue(6*j+4)-y,vz=(float)raw.GetValue(6*j+5)-z;
@@ -51,7 +51,7 @@ public:
                 }
                 cached=batch; Sync();
             }
-            DataCopyPad(pt,points[(batch*n+start)*3],{1,count*3*sizeof(T),0,0,0},{false,0,0,0}); Sync();
+            DataCopyPad(pt,points[(batch*n+start)*3],{1,uint32_t(count*3*sizeof(T)),0,0,0},{false,0,0,0}); Sync();
             for(uint32_t p=0;p<count;++p) {
                 float x=(float)pt.GetValue(3*p),y=(float)pt.GetValue(3*p+1),z=(float)pt.GetValue(3*p+2);
                 Adds(dx,ax,-x,m); Adds(dy,ay,-y,m); Adds(dz,az,-z,m);
@@ -71,7 +71,7 @@ public:
             Sync();
             if constexpr (sizeof(T)==2) { Cast(typedOut,out,RoundMode::CAST_RINT,count); Sync(); }
             else { typedOut=out; }
-            DataCopyPad(distances[batch*n+start],typedOut,{1,count*sizeof(T),0,0,0});
+            DataCopyPad(distances[batch*n+start],typedOut,{1,uint32_t(count*sizeof(T)),0,0,0});
             DataCopyPad(indices[batch*n+start],idx,{1,count*4,0,0,0}); Sync();
         }
     }
