@@ -122,7 +122,7 @@ public:
                     Mul(tmp,dz,dz,count); Add(dsq,dsq,tmp,count);
                     Compare(mask,dsq,out,CMPMODE::GE,64);
                     Select(out,mask,out,dsq,SELMODE::VSEL_CMPMASK_SPR,count);
-                    Duplicate(denominator,float(j),count);
+                    Duplicate(denominator,float(int32_t(j)),count);
                     Select(floatIdx,mask,floatIdx,denominator,SELMODE::VSEL_CMPMASK_SPR,count);
                 }
                 Sqrt(out,out,count); Cast(idx,floatIdx,RoundMode::CAST_RINT,count);
