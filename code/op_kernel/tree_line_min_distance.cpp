@@ -94,7 +94,7 @@ public:
                 Mul(tmp,dz,dz,count); Add(dsq,dsq,tmp,count);
                 Sqrt(out,dsq,count);
                 Duplicate(idx,int32_t(0),count);
-            } else if(m>1 && 2*m<=count) {
+            } else if(m>1 && m<=count) {
                 auto px=rawBuf.Get<float>()[256],py=rawBuf.Get<float>()[320],pz=rawBuf.Get<float>()[384];
                 auto floatIdx=work[6*width],denominator=scratch;
                 auto mask=pointBuf.Get<uint8_t>();
