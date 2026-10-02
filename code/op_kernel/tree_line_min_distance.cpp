@@ -32,7 +32,8 @@ public:
         auto dx=work[0],dy=work[width],dz=work[2*width],t=work[3*width];
         auto tmp=work[4*width],dsq=work[5*width];
         auto red=resultBuf.Get<float>(),scratch=red[64];
-        auto out=outputBuf.Get<float>(),idx=outputBuf.Get<int32_t>()[32];
+        auto out=outputBuf.Get<float>();
+        auto idx=outputBuf.Get<int32_t>()[32];
         auto typedOut=outputBuf.Get<T>()[256/sizeof(T)];
         uint32_t blocks=(n+31)/32,cached=b;
         for (uint32_t task=GetBlockIdx();task<b*blocks;task+=GetBlockNum()) {
