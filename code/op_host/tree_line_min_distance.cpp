@@ -20,8 +20,16 @@ static ge::graphStatus TilingFunc(gert::TilingContext *context) {
     auto platform=platform_ascendc::PlatformAscendC(context->GetPlatformInfo());
     auto *t=context->GetTilingData<TreeLineMinDistanceTilingData>();
     t->b=p.GetDim(0); t->n=p.GetDim(1); t->m=s.GetDim(1);
-    const uint32_t tasks=t->b*((t->n+31)/32);
     uint32_t cores=platform.GetCoreNumAiv();
+    if(cores==0) cores=1;
+    t->tilePoints=32;
+    if(t->b*((t->n+31)/32)<cores) {
+        uint32_t perBatch=cores/t->b;
+        if(perBatch==0) perBatch=1;
+        t->tilePoints=(t->n+perBatch-1)/perBatch;
+        if(t->tilePoints>32) t->tilePoints=32;
+    }
+    const uint32_t tasks=t->b*((t->n+t->tilePoints-1)/t->tilePoints);
     context->SetBlockDim(tasks<cores?tasks:cores);
     uint32_t DT_TREE_POINTS=static_cast<uint32_t>(dtype);
     ASCENDC_TPL_SEL_PARAM(context,DT_TREE_POINTS);

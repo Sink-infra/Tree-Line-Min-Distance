@@ -8,12 +8,12 @@ class KernelTreeLineMinDistance {
     TBuf<TPosition::VECCALC> rawBuf,pointBuf,arraysBuf,workBuf,resultBuf,outputBuf,convertBuf;
     GlobalTensor<T> points,segments,distances;
     GlobalTensor<int32_t> indices;
-    uint32_t b,n,m,width;
+    uint32_t b,n,m,width,tilePoints;
     __aicore__ inline void Sync() { PipeBarrier<PIPE_ALL>(); }
 public:
     __aicore__ inline void Init(GM_ADDR p,GM_ADDR s,GM_ADDR d,GM_ADDR i,TreeLineMinDistanceTilingData t,TPipe *pipeIn) {
         pipe=pipeIn;
-        b=t.b; n=t.n; m=t.m; width=(m+63)/64*64;
+        b=t.b; n=t.n; m=t.m; tilePoints=t.tilePoints; width=(m+63)/64*64;
         points.SetGlobalBuffer((__gm__ T*)p); segments.SetGlobalBuffer((__gm__ T*)s);
         distances.SetGlobalBuffer((__gm__ T*)d); indices.SetGlobalBuffer((__gm__ int32_t*)i);
         pipe->InitBuffer(rawBuf,6*1024*4);
@@ -37,10 +37,10 @@ public:
         auto out=outputBuf.Get<float>();
         auto idx=outputBuf.Get<int32_t>()[32];
         auto typedOut=outputBuf.Get<T>()[256/sizeof(T)];
-        uint32_t blocks=(n+31)/32,cached=b;
+        uint32_t blocks=(n+tilePoints-1)/tilePoints,cached=b;
         for (uint32_t task=GetBlockIdx();task<b*blocks;task+=GetBlockNum()) {
-            uint32_t batch=task/blocks,start=(task%blocks)*32,count=n-start;
-            if(count>32) count=32;
+            uint32_t batch=task/blocks,start=(task%blocks)*tilePoints,count=n-start;
+            if(count>tilePoints) count=tilePoints;
             if(cached!=batch) {
                 DataCopyPad(raw,segments[batch*m*6],{1,uint32_t(m*6*sizeof(T)),0,0,0},{false,0,0,0}); Sync();
                 if(m>=32) {
@@ -94,7 +94,7 @@ public:
                 Mul(tmp,dz,dz,count); Add(dsq,dsq,tmp,count);
                 Sqrt(out,dsq,count);
                 Duplicate(idx,int32_t(0),count);
-            } else if(m>1 && m<=count) {
+            } else if(m>1 && (2*m<=count || (sizeof(T)==2 && count==32 && m<=count))) {
                 auto px=rawBuf.Get<float>()[256],py=rawBuf.Get<float>()[320],pz=rawBuf.Get<float>()[384];
                 auto floatIdx=work[6*width],denominator=scratch;
                 auto mask=pointBuf.Get<uint8_t>();
