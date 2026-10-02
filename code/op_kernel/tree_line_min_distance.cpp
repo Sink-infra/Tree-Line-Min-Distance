@@ -52,6 +52,28 @@ public:
                 cached=batch; Sync();
             }
             DataCopyPad(pt,points[(batch*n+start)*3],{1,uint32_t(count*3*sizeof(T)),0,0,0},{false,0,0,0}); Sync();
+            if(m==1 && count>=4) {
+                float x=ax.GetValue(0),y=ay.GetValue(0),z=az.GetValue(0);
+                float vx=ux.GetValue(0),vy=uy.GetValue(0),vz=uz.GetValue(0);
+                auto denominator=work[6*width];
+                for(uint32_t p=0;p<count;++p) {
+                    dx.SetValue(p,x-(float)pt.GetValue(3*p));
+                    dy.SetValue(p,y-(float)pt.GetValue(3*p+1));
+                    dz.SetValue(p,z-(float)pt.GetValue(3*p+2));
+                }
+                Sync();
+                Duplicate(denominator,len.GetValue(0),count);
+                Muls(t,dx,vx,count); Muls(tmp,dy,vy,count); Add(t,t,tmp,count);
+                Muls(tmp,dz,vz,count); Add(t,t,tmp,count); Muls(t,t,-1.0f,count);
+                Div(t,t,denominator,count); Maxs(t,t,0.0f,count); Mins(t,t,1.0f,count);
+                Muls(tmp,t,vx,count); Add(dx,dx,tmp,count);
+                Muls(tmp,t,vy,count); Add(dy,dy,tmp,count);
+                Muls(tmp,t,vz,count); Add(dz,dz,tmp,count);
+                Mul(dsq,dx,dx,count); Mul(tmp,dy,dy,count); Add(dsq,dsq,tmp,count);
+                Mul(tmp,dz,dz,count); Add(dsq,dsq,tmp,count);
+                Sqrt(out,dsq,count);
+                Duplicate(idx,int32_t(0),count);
+            } else {
             for(uint32_t p=0;p<count;++p) {
                 float x=(float)pt.GetValue(3*p),y=(float)pt.GetValue(3*p+1),z=(float)pt.GetValue(3*p+2);
                 Adds(dx,ax,-x,m); Adds(dy,ay,-y,m); Adds(dz,az,-z,m);
@@ -67,6 +89,7 @@ public:
                 int32_t winner=red.ReinterpretCast<int32_t>().GetValue(1);
                 Sqrt(red,red,1); Sync();
                 out.SetValue(p,red.GetValue(0)); idx.SetValue(p,winner);
+            }
             }
             Sync();
             if constexpr (sizeof(T)==2) { Cast(typedOut,out,RoundMode::CAST_RINT,count); Sync(); }
