@@ -98,7 +98,7 @@ public:
             for(uint32_t p=0;p<count;++p) {
                 float x=(float)pt.GetValue(3*p),y=(float)pt.GetValue(3*p+1),z=(float)pt.GetValue(3*p+2);
                 Adds(dx,ax,-x,m); Adds(dy,ay,-y,m); Adds(dz,az,-z,m);
-                if(m>=32) {
+                if(m>=32 && width<=768) {
                     Mul(t,dx,ux,m); MulAddDst(t,dy,uy,m); MulAddDst(t,dz,uz,m); Muls(t,t,-1.0f,m);
                     Div(t,t,len,m); Maxs(t,t,0.0f,m); Mins(t,t,1.0f,m);
                     MulAddDst(dx,t,ux,m); MulAddDst(dy,t,uy,m); MulAddDst(dz,t,uz,m);
