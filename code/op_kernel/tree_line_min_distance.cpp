@@ -94,6 +94,38 @@ public:
                 Mul(tmp,dz,dz,count); Add(dsq,dsq,tmp,count);
                 Sqrt(out,dsq,count);
                 Duplicate(idx,int32_t(0),count);
+            } else if(m>1 && m<=count) {
+                auto px=rawBuf.Get<float>()[256],py=rawBuf.Get<float>()[320],pz=rawBuf.Get<float>()[384];
+                auto floatIdx=work[6*width],denominator=scratch;
+                auto mask=pointBuf.Get<uint8_t>();
+                for(uint32_t p=0;p<count;++p) {
+                    px.SetValue(p,(float)pt.GetValue(3*p));
+                    py.SetValue(p,(float)pt.GetValue(3*p+1));
+                    pz.SetValue(p,(float)pt.GetValue(3*p+2));
+                }
+                Sync();
+                Duplicate(out,3.402823466e38f,count); Duplicate(floatIdx,0.0f,count);
+                for(uint32_t j=0;j<m;++j) {
+                    float x=ax.GetValue(j),y=ay.GetValue(j),z=az.GetValue(j);
+                    float vx=ux.GetValue(j),vy=uy.GetValue(j),vz=uz.GetValue(j);
+                    Muls(dx,px,-1.0f,count); Adds(dx,dx,x,count);
+                    Muls(dy,py,-1.0f,count); Adds(dy,dy,y,count);
+                    Muls(dz,pz,-1.0f,count); Adds(dz,dz,z,count);
+                    Duplicate(denominator,len.GetValue(j),count);
+                    Muls(t,dx,vx,count); Muls(tmp,dy,vy,count); Add(t,t,tmp,count);
+                    Muls(tmp,dz,vz,count); Add(t,t,tmp,count); Muls(t,t,-1.0f,count);
+                    Div(t,t,denominator,count); Maxs(t,t,0.0f,count); Mins(t,t,1.0f,count);
+                    Muls(tmp,t,vx,count); Add(dx,dx,tmp,count);
+                    Muls(tmp,t,vy,count); Add(dy,dy,tmp,count);
+                    Muls(tmp,t,vz,count); Add(dz,dz,tmp,count);
+                    Mul(dsq,dx,dx,count); Mul(tmp,dy,dy,count); Add(dsq,dsq,tmp,count);
+                    Mul(tmp,dz,dz,count); Add(dsq,dsq,tmp,count);
+                    Compare(mask,dsq,out,CMPMODE::GE,64);
+                    Select(out,mask,out,dsq,SELMODE::VSEL_CMPMASK_SPR,count);
+                    Duplicate(denominator,float(int32_t(j)),count);
+                    Select(floatIdx,mask,floatIdx,denominator,SELMODE::VSEL_CMPMASK_SPR,count);
+                }
+                Sqrt(out,out,count); Cast(idx,floatIdx,RoundMode::CAST_RINT,count);
             } else {
             for(uint32_t p=0;p<count;++p) {
                 float x=(float)pt.GetValue(3*p),y=(float)pt.GetValue(3*p+1),z=(float)pt.GetValue(3*p+2);
