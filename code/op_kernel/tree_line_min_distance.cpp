@@ -98,6 +98,12 @@ public:
             for(uint32_t p=0;p<count;++p) {
                 float x=(float)pt.GetValue(3*p),y=(float)pt.GetValue(3*p+1),z=(float)pt.GetValue(3*p+2);
                 Adds(dx,ax,-x,m); Adds(dy,ay,-y,m); Adds(dz,az,-z,m);
+                if(m>=32) {
+                    Mul(t,dx,ux,m); MulAddDst(t,dy,uy,m); MulAddDst(t,dz,uz,m); Muls(t,t,-1.0f,m);
+                    Div(t,t,len,m); Maxs(t,t,0.0f,m); Mins(t,t,1.0f,m);
+                    MulAddDst(dx,t,ux,m); MulAddDst(dy,t,uy,m); MulAddDst(dz,t,uz,m);
+                    Mul(dsq,dx,dx,m); MulAddDst(dsq,dy,dy,m); MulAddDst(dsq,dz,dz,m);
+                } else {
                 Mul(t,dx,ux,m); Mul(tmp,dy,uy,m); Add(t,t,tmp,m);
                 Mul(tmp,dz,uz,m); Add(t,t,tmp,m); Muls(t,t,-1.0f,m);
                 Div(t,t,len,m); Maxs(t,t,0.0f,m); Mins(t,t,1.0f,m);
@@ -106,6 +112,7 @@ public:
                 Mul(tmp,t,uz,m); Add(dz,dz,tmp,m);
                 Mul(dsq,dx,dx,m); Mul(tmp,dy,dy,m); Add(dsq,dsq,tmp,m);
                 Mul(tmp,dz,dz,m); Add(dsq,dsq,tmp,m);
+                }
                 ReduceMin(red,dsq,scratch,m,true); Sync();
                 int32_t winner=red.ReinterpretCast<int32_t>().GetValue(1);
                 Sqrt(red,red,1); Sync();
