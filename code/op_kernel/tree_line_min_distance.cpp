@@ -5,7 +5,7 @@ using namespace AscendC;
 template <typename T>
 class KernelTreeLineMinDistance {
     TPipe *pipe;
-    TBuf<TPosition::VECCALC> rawBuf,pointBuf,arraysBuf,workBuf,resultBuf,outputBuf;
+    TBuf<TPosition::VECCALC> rawBuf,pointBuf,arraysBuf,workBuf,resultBuf,outputBuf,convertBuf;
     GlobalTensor<T> points,segments,distances;
     GlobalTensor<int32_t> indices;
     uint32_t b,n,m,width;
@@ -22,6 +22,7 @@ public:
         pipe->InitBuffer(workBuf,7*width*4);
         pipe->InitBuffer(resultBuf,(width+64)*4);
         pipe->InitBuffer(outputBuf,32*12);
+        if constexpr (sizeof(T)==2) { pipe->InitBuffer(convertBuf,6*1024*4); }
     }
     __aicore__ inline void Process() {
         auto raw=rawBuf.Get<T>();
@@ -42,6 +43,24 @@ public:
             if(count>32) count=32;
             if(cached!=batch) {
                 DataCopyPad(raw,segments[batch*m*6],{1,uint32_t(m*6*sizeof(T)),0,0,0},{false,0,0,0}); Sync();
+                if(m>=32) {
+                    auto src=raw.template ReinterpretCast<float>();
+                    if constexpr (sizeof(T)==2) {
+                        src=convertBuf.Get<float>();
+                        Cast(src,raw,RoundMode::CAST_NONE,6*m);
+                    }
+                    auto offsets=work.template ReinterpretCast<uint32_t>()[6*width];
+                    for(uint32_t j=0;j<m;++j) { offsets.SetValue(j,24*j); }
+                    Sync();
+                    Gather(ax,src,offsets,0,m); Gather(ay,src,offsets,4,m); Gather(az,src,offsets,8,m);
+                    Gather(ux,src,offsets,12,m); Gather(uy,src,offsets,16,m); Gather(uz,src,offsets,20,m);
+                    Sub(ux,ux,ax,m); Sub(uy,uy,ay,m); Sub(uz,uz,az,m);
+                    Mul(len,ux,ux,m); Mul(tmp,uy,uy,m); Add(len,len,tmp,m);
+                    Mul(tmp,uz,uz,m); Add(len,len,tmp,m);
+                    auto mask=pointBuf.Get<uint8_t>();
+                    CompareScalar(mask,len,0.0f,CMPMODE::NE,width);
+                    Select(len,mask,len,1.0f,SELMODE::VSEL_TENSOR_SCALAR_MODE,m);
+                } else {
                 for(uint32_t j=0;j<m;++j) {
                     float x=(float)raw.GetValue(6*j),y=(float)raw.GetValue(6*j+1),z=(float)raw.GetValue(6*j+2);
                     float vx=(float)raw.GetValue(6*j+3)-x,vy=(float)raw.GetValue(6*j+4)-y,vz=(float)raw.GetValue(6*j+5)-z;
@@ -49,6 +68,7 @@ public:
                     ux.SetValue(j,vx); uy.SetValue(j,vy); uz.SetValue(j,vz);
                     float l=vx*vx+vy*vy+vz*vz;
                     len.SetValue(j,l==0.0f?1.0f:l);
+                }
                 }
                 cached=batch; Sync();
             }
