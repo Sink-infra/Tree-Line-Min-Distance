@@ -20,7 +20,7 @@ constexpr uint32_t kTileCap = 512;   // points resident in one tile
 constexpr uint32_t oAx = 0, oAy = 1024, oAz = 2048;
 constexpr uint32_t oUx = 3072, oUy = 4096, oUz = 5120;
 constexpr uint32_t oKx = 6144, oKy = 7168, oKz = 8192;
-constexpr uint32_t oDx = 9216, oDy = 13312, oDz = 17408, oTt = 21504;
+constexpr uint32_t oDx = 9216, oDy = 13312, oDz = 17408, oTt = 21504, oDsq = 25600;
 // derivation scratch, overlaid on the work area
 constexpr uint32_t oSegRaw = 9216;    // 6144 T
 constexpr uint32_t oSegFlt = 15360;   // 6144 float, fp16 input only
@@ -28,23 +28,23 @@ constexpr uint32_t oNegOne = 21504;   // 1024 float, constant -1
 constexpr uint32_t oLen = 22528;      // 1024 float
 constexpr uint32_t oInvLen = 23552;   // 1024 float
 // persistent
-constexpr uint32_t oSegOff = 25600;   // 1024 uint32, 24 * j
-constexpr uint32_t oPtRaw = 26624;    // 1536 T
-constexpr uint32_t oPtFlt = 28160;    // 1536 float
-constexpr uint32_t oPtOff = 29696;    // 512 uint32, 12 * i
-constexpr uint32_t oDiv8 = 30208;     // 512 uint32, 4 * (l / 8)
-constexpr uint32_t oPx = 30720, oPy = 30784, oPz = 30848;
-constexpr uint32_t oPxv = 30912, oPyv = 31424, oPzv = 31936;
-constexpr uint32_t oPair = 32448;     // 128 float, value/index pairs
-constexpr uint32_t oCmin = 32576, oCidx = 32640;
-constexpr uint32_t oBest = 32704, oFidx = 33216;
-constexpr uint32_t oRes = 33728;      // 1024 float
-constexpr uint32_t oRedW = 34752;     // 512 float
-constexpr uint32_t oDist = 35264;     // 512 float
-constexpr uint32_t oIdx = 35776;      // 512 int32
-constexpr uint32_t oHalf = 36288;     // 512 half
-constexpr uint32_t oMask = 36544;     // 256B compare mask
-constexpr uint32_t oArena = 36608;    // arena size in floats
+constexpr uint32_t oSegOff = 29696;   // 1024 uint32, 24 * j
+constexpr uint32_t oPtRaw = 30720;    // 1536 T
+constexpr uint32_t oPtFlt = 32256;    // 1536 float
+constexpr uint32_t oPtOff = 33792;    // 512 uint32, 12 * i
+constexpr uint32_t oDiv8 = 34304;     // 512 uint32, 4 * (l / 8)
+constexpr uint32_t oPx = 34816, oPy = 34880, oPz = 34944;
+constexpr uint32_t oPxv = 35008, oPyv = 35520, oPzv = 36032;
+constexpr uint32_t oPair = 36544;     // 128 float, value/index pairs
+constexpr uint32_t oCmin = 36672, oCidx = 36736;
+constexpr uint32_t oBest = 36800, oFidx = 37312;
+constexpr uint32_t oRes = 37824;      // 1024 float
+constexpr uint32_t oRedW = 38848;     // 512 float
+constexpr uint32_t oDist = 39360;     // 512 float
+constexpr uint32_t oIdx = 39872;      // 512 int32
+constexpr uint32_t oHalf = 40384;     // 512 half
+constexpr uint32_t oMask = 40640;     // 256B compare mask
+constexpr uint32_t oArena = 40704;    // arena size in floats
 
 __aicore__ inline uint32_t AlignLanes(uint32_t v)
 {
@@ -120,6 +120,7 @@ public:
         const uint32_t tasks = b * chunks;
         const uint32_t stride = GetBlockNum();
         uint32_t cached = 0xFFFFFFFFu;
+        bool stored = false;
         for (uint32_t task = GetBlockIdx(); task < tasks; task += stride) {
             const uint32_t batch = task / chunks;
             const uint32_t begin = (task - batch * chunks) * chunkPoints;
@@ -166,7 +167,10 @@ public:
                 }
                 // The previous tile's stores must retire before its result
                 // buffers are rewritten.
-                Hop<HardEvent::MTE3_V>();
+                if (stored) {
+                    Hop<HardEvent::MTE3_V>();
+                }
+                stored = true;
                 if (done != 0) {
                     if (mode != 0) {
                         Hop<HardEvent::V_MTE2>();
@@ -286,7 +290,7 @@ private:
         LocalTensor<float> ux = arena[oUx], uy = arena[oUy], uz = arena[oUz];
         LocalTensor<float> kx = arena[oKx], ky = arena[oKy], kz = arena[oKz];
         LocalTensor<float> dx = arena[oDx], dy = arena[oDy], dz = arena[oDz];
-        LocalTensor<float> tt = arena[oTt];
+        LocalTensor<float> tt = arena[oTt], dsq = arena[oDsq];
         LocalTensor<float> px = arena[oPx], py = arena[oPy], pz = arena[oPz];
         LocalTensor<float> pxv = arena[oPxv], pyv = arena[oPyv], pzv = arena[oPzv];
         LocalTensor<float> pair = arena[oPair], cmin = arena[oCmin], cidx = arena[oCidx];
@@ -334,12 +338,12 @@ private:
                 MulAddDst<float, float, false>(dx, tt, ux[seg], MASK_PLACEHOLDER, reps, fold);
                 MulAddDst<float, float, false>(dy, tt, uy[seg], MASK_PLACEHOLDER, reps, fold);
                 MulAddDst<float, float, false>(dz, tt, uz[seg], MASK_PLACEHOLDER, reps, fold);
-                Mul<float, false>(tt, dx, dx, MASK_PLACEHOLDER, reps, plain);
-                MulAddDst<float, float, false>(tt, dy, dy, MASK_PLACEHOLDER, reps, plain);
-                MulAddDst<float, float, false>(tt, dz, dz, MASK_PLACEHOLDER, reps, plain);
+                Mul<float, false>(dsq, dx, dx, MASK_PLACEHOLDER, reps, plain);
+                MulAddDst<float, float, false>(dsq, dy, dy, MASK_PLACEHOLDER, reps, plain);
+                MulAddDst<float, float, false>(dsq, dz, dz, MASK_PLACEHOLDER, reps, plain);
                 ResetMask();
                 // Each repeat holds one point against this segment window.
-                WholeReduceMin(pair, tt, (int32_t)kLanes, (int32_t)reps, 1, 1, 8);
+                WholeReduceMin(pair, dsq, (int32_t)kLanes, (int32_t)reps, 1, 1, 8);
                 uint64_t kept = 0;
                 GatherMask(cmin, pair, (uint8_t)1, false, 0, {1, 2, 8, 8}, kept);
                 GatherMask(cidx, pair, (uint8_t)2, false, 0, {1, 2, 8, 8}, kept);
@@ -354,7 +358,7 @@ private:
             }
             Sqrt(dist, best, span);
             Cast(out, bidx, RoundMode::CAST_RINT, span);
-            Emit(batch, start + done, span, dist, out, false);
+            Emit(batch, start + done, span, dist, out);
             if (done + group < count) {
                 Hop<HardEvent::MTE3_V>();
             }
@@ -368,6 +372,7 @@ private:
         LocalTensor<T> seg = arena[oSegRaw].template ReinterpretCast<T>();
         LocalTensor<T> raw = arena[oPtRaw].template ReinterpretCast<T>();
         LocalTensor<float> dist = arena[oDist];
+        LocalTensor<float> winners = arena[oBest];
         LocalTensor<int32_t> idx = arena[oIdx].ReinterpretCast<int32_t>();
         const int32_t total = (int32_t)m;
         for (uint32_t p = 0; p < count; ++p) {
@@ -404,11 +409,12 @@ private:
                 }
             }
             dist.SetValue(p, best);
-            idx.SetValue(p, winner);
+            winners.SetValue(p, (float)winner);
         }
         Hop<HardEvent::S_V>();
         Sqrt(dist, dist, count);
-        Emit(batch, start, count, dist, idx, true);
+        Cast(idx, winners, RoundMode::CAST_RINT, count);
+        Emit(batch, start, count, dist, idx);
     }
 
     // Segment lanes: one point at a time, the whole segment set in vector
@@ -420,7 +426,7 @@ private:
         LocalTensor<float> ux = arena[oUx], uy = arena[oUy], uz = arena[oUz];
         LocalTensor<float> kx = arena[oKx], ky = arena[oKy], kz = arena[oKz];
         LocalTensor<float> dx = arena[oDx], dy = arena[oDy], dz = arena[oDz];
-        LocalTensor<float> tt = arena[oTt];
+        LocalTensor<float> tt = arena[oTt], dsq = arena[oDsq];
         LocalTensor<float> res = arena[oRes], work = arena[oRedW];
         const uint32_t lanes = mAligned;
 
@@ -439,10 +445,10 @@ private:
             MulAddDst(dx, tt, ux, lanes);
             MulAddDst(dy, tt, uy, lanes);
             MulAddDst(dz, tt, uz, lanes);
-            Mul(tt, dx, dx, lanes);
-            MulAddDst(tt, dy, dy, lanes);
-            MulAddDst(tt, dz, dz, lanes);
-            ReduceMin(res[2 * p], tt, work, lanes, true);
+            Mul(dsq, dx, dx, lanes);
+            MulAddDst(dsq, dy, dy, lanes);
+            MulAddDst(dsq, dz, dz, lanes);
+            ReduceMin(res[2 * p], dsq, work, lanes, true);
         }
 
         LocalTensor<float> dist = arena[oDist];
@@ -453,7 +459,7 @@ private:
         GatherMask(dist, res, (uint8_t)1, false, 0, {1, repeats, 8, 8}, kept);
         GatherMask(idxFloat, res, (uint8_t)2, false, 0, {1, repeats, 8, 8}, kept);
         Sqrt(dist, dist, count);
-        Emit(batch, start, count, dist, idx, false);
+        Emit(batch, start, count, dist, idx);
     }
 
     // Point lanes: the point tile stays in vector lanes while segments are
@@ -467,7 +473,7 @@ private:
         LocalTensor<float> kx = arena[oKx], ky = arena[oKy], kz = arena[oKz];
         LocalTensor<float> px = arena[oPxv], py = arena[oPyv], pz = arena[oPzv];
         LocalTensor<float> dx = arena[oDx], dy = arena[oDy], dz = arena[oDz];
-        LocalTensor<float> tt = arena[oTt];
+        LocalTensor<float> tt = arena[oTt], dsq = arena[oDsq];
         LocalTensor<float> best = arena[oBest], fidx = arena[oFidx];
         LocalTensor<uint32_t> off = arena[oPtOff].ReinterpretCast<uint32_t>();
         LocalTensor<uint8_t> keep = arena[oMask].ReinterpretCast<uint8_t>();
@@ -520,12 +526,12 @@ private:
                 MulAddDst(best, dy, dy, wide);
                 MulAddDst(best, dz, dz, wide);
             } else {
-                Mul(tt, dx, dx, wide);
-                MulAddDst(tt, dy, dy, wide);
-                MulAddDst(tt, dz, dz, wide);
+                Mul(dsq, dx, dx, wide);
+                MulAddDst(dsq, dy, dy, wide);
+                MulAddDst(dsq, dz, dz, wide);
                 // GE keeps the incumbent on ties, so the smallest index wins.
-                Compare(keep, tt, best, CMPMODE::GE, wide);
-                Min(best, best, tt, wide);
+                Compare(keep, dsq, best, CMPMODE::GE, wide);
+                Min(best, best, dsq, wide);
                 Select(fidx, keep, fidx, static_cast<float>(j), SELMODE::VSEL_TENSOR_SCALAR_MODE, wide);
             }
         }
@@ -534,27 +540,20 @@ private:
         LocalTensor<int32_t> idx = arena[oIdx].ReinterpretCast<int32_t>();
         Sqrt(dist, best, count);
         Cast(idx, fidx, RoundMode::CAST_RINT, count);
-        Emit(batch, start, count, dist, idx, false);
+        Emit(batch, start, count, dist, idx);
     }
 
     __aicore__ inline void Emit(uint32_t batch, uint32_t start, uint32_t count,
-                                const LocalTensor<float> &dist, const LocalTensor<int32_t> &idx,
-                                bool scalarIndex)
+                                const LocalTensor<float> &dist, const LocalTensor<int32_t> &idx)
     {
         if constexpr (sizeof(T) == 2) {
             LocalTensor<T> narrow = arena[oHalf].template ReinterpretCast<T>();
             Cast(narrow, dist, RoundMode::CAST_RINT, count);
             Hop<HardEvent::V_MTE3>();
-            if (scalarIndex) {
-                Hop<HardEvent::S_MTE3>();
-            }
             DataCopyPad(distances[(uint64_t)batch * n + start], narrow,
                         {1, (uint32_t)(count * sizeof(T)), 0, 0, 0});
         } else {
             Hop<HardEvent::V_MTE3>();
-            if (scalarIndex) {
-                Hop<HardEvent::S_MTE3>();
-            }
             LocalTensor<T> plain = dist.template ReinterpretCast<T>();
             DataCopyPad(distances[(uint64_t)batch * n + start], plain,
                         {1, (uint32_t)(count * sizeof(T)), 0, 0, 0});
