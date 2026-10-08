@@ -5,10 +5,19 @@
 namespace {
 constexpr uint32_t kLanes = 64;
 constexpr uint32_t kTileCap = 512;
-// Issue overhead of one vector instruction expressed in repeat units. Only the
-// ratio matters; it separates the two lane orientations by instruction count
-// when a tile is narrow and by data volume when it is wide.
-constexpr uint64_t kIssue = 3;
+// Cost constants in AIV cycles, calibrated from PipeUtilization samples on
+// ascend910b: a level-2 vector call costs a fixed issue overhead plus a few
+// cycles per 256B repeat, and one scalar point/segment pair costs about as
+// much as a short dependent float chain.
+constexpr uint64_t kCall = 75;
+constexpr uint64_t kRepeat = 4;
+constexpr uint64_t kPair = 150;
+// Calls outside the inner loops: segment derivation, and the per-tile
+// gather/reduce/emit tails of each orientation.
+constexpr uint64_t kDeriveCalls = 18;
+constexpr uint64_t kSegTailCalls = 3;
+constexpr uint64_t kPointSetupCalls = 10;
+constexpr uint64_t kScalarTailCalls = 4;
 bool Valid(const gert::Shape &p, const gert::Shape &s) {
     return p.GetDimNum()==3 && s.GetDimNum()==4 &&
         p.GetDim(0)>=1 && p.GetDim(0)<=8 && p.GetDim(0)==s.GetDim(0) &&
@@ -41,15 +50,22 @@ static ge::graphStatus TilingFunc(gert::TilingContext *context) {
     chunks=CeilDiv(n,chunkPoints);
     uint32_t tilePoints=chunkPoints<kTileCap?chunkPoints:kTileCap;
 
-    // Cost model over repeat units: point lanes issue 17 instructions per
-    // segment, segment lanes issue 15 per point and fold the argmin into
-    // ReduceMin. Neither side is tied to a specific shape.
+    // Three orientations priced on the same model, picked by the work one
+    // core actually owns. No branch here looks at a particular shape.
     const uint64_t tiles=CeilDiv(chunkPoints,tilePoints);
-    const uint64_t pointRepeats=CeilDiv(chunkPoints,kLanes);
-    const uint64_t segRepeats=CeilDiv(m,kLanes);
-    const uint64_t costPointLanes=17ULL*m*(pointRepeats+kIssue*tiles);
-    const uint64_t costSegLanes=15ULL*chunkPoints*(segRepeats+kIssue);
-    t->mode=costPointLanes<costSegLanes?1u:0u;
+    const uint64_t segRepeat=CeilDiv(m,kLanes);
+    const uint64_t pointRepeat=CeilDiv(tilePoints,kLanes);
+    const uint64_t segCall=kCall+kRepeat*segRepeat;
+    const uint64_t pointCall=kCall+kRepeat*pointRepeat;
+    const uint64_t costSegLanes=(kDeriveCalls+15ULL*chunkPoints)*segCall+tiles*kSegTailCalls*kCall;
+    const uint64_t costPointLanes=kDeriveCalls*segCall+tiles*kPointSetupCalls*kCall+
+        17ULL*m*tiles*pointCall;
+    const uint64_t costScalarLanes=(uint64_t)chunkPoints*m*kPair+tiles*kScalarTailCalls*kCall;
+    uint32_t mode=0;
+    uint64_t best=costSegLanes;
+    if(costPointLanes<best) { best=costPointLanes; mode=1; }
+    if(costScalarLanes<best) { mode=2; }
+    t->mode=mode;
 
     t->b=b; t->n=n; t->m=m;
     t->chunks=chunks; t->chunkPoints=chunkPoints; t->tilePoints=tilePoints;
