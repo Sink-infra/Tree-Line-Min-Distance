@@ -16,6 +16,13 @@ constexpr uint64_t kPair = 60;
 // Measured cost of adding one more block to the launch: an empty kernel grows
 // from 1.76us at one block to 3.60us at forty-eight.
 constexpr uint64_t kBlock = 74;
+// The blocked cost below tracks the call and repeat counts but not everything
+// a group pays per point, and it drifts low enough to trade too much
+// parallelism away: (1,33,31) runs in 4.12us across eleven blocks and 5.54us
+// across four. So a blocked split also has to keep a floor of blocks busy,
+// clamped to what the shape can actually supply. The other orientations are
+// priced from measurements that held, and are left to the model alone.
+constexpr uint32_t kBlockFloor = 10;
 // Calls outside the inner loops: segment derivation, and the per-tile
 // gather/reduce/emit tails of each orientation.
 constexpr uint64_t kDeriveCalls = 18;
@@ -60,9 +67,12 @@ static ge::graphStatus TilingFunc(gert::TilingContext *context) {
     if(span==0) span=1;
     uint32_t chunks=span, chunkPoints=CeilDiv(n,span), tilePoints=1, group=1, mode=0;
     uint64_t cheapest=~0ULL;
+    const uint32_t reach=b*span;
+    const uint32_t least=kBlockFloor<reach?kBlockFloor:reach;
     for(uint32_t probe=1;probe<=span;++probe) {
         const uint32_t owned=CeilDiv(n,probe);
         const uint32_t split=CeilDiv(n,owned);
+        const bool spread=b*split>=least;
         const uint32_t tile=owned<kTileCap?owned:kTileCap;
         const uint32_t pack=kGroupCap<owned?kGroupCap:owned;
         const uint64_t tiles=CeilDiv(owned,tile);
@@ -86,7 +96,7 @@ static ge::graphStatus TilingFunc(gert::TilingContext *context) {
         uint64_t inner=costSegLanes;
         if(costPointLanes<inner) { inner=costPointLanes; pick=1; }
         if(costScalarLanes<inner) { inner=costScalarLanes; pick=2; }
-        if(costBlocked<inner) { inner=costBlocked; pick=3; }
+        if(spread&&costBlocked<inner) { inner=costBlocked; pick=3; }
         const uint64_t total=kBlock*(uint64_t)b*split+inner;
         if(total<cheapest) {
             cheapest=total;
