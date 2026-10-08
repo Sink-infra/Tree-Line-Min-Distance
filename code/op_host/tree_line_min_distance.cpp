@@ -5,6 +5,7 @@
 namespace {
 constexpr uint32_t kLanes = 64;
 constexpr uint32_t kTileCap = 512;
+constexpr uint32_t kGroupCap = 64;
 // Cost constants in AIV cycles, calibrated from PipeUtilization samples on
 // ascend910b: a level-2 vector call costs a fixed issue overhead plus a few
 // cycles per 256B repeat, and one scalar point/segment pair costs about as
@@ -18,6 +19,12 @@ constexpr uint64_t kDeriveCalls = 18;
 constexpr uint64_t kSegTailCalls = 3;
 constexpr uint64_t kPointSetupCalls = 10;
 constexpr uint64_t kScalarTailCalls = 4;
+// One blocked chunk issues the fourteen lane operations, the window
+// reduction and the carry across windows; one blocked point group also pays
+// the coordinate spread and its own tail.
+constexpr uint64_t kChunkCalls = 15;
+constexpr uint64_t kCarryCalls = 7;
+constexpr uint64_t kGroupCalls = 9;
 bool Valid(const gert::Shape &p, const gert::Shape &s) {
     return p.GetDimNum()==3 && s.GetDimNum()==4 &&
         p.GetDim(0)>=1 && p.GetDim(0)<=8 && p.GetDim(0)==s.GetDim(0) &&
@@ -50,7 +57,7 @@ static ge::graphStatus TilingFunc(gert::TilingContext *context) {
     chunks=CeilDiv(n,chunkPoints);
     uint32_t tilePoints=chunkPoints<kTileCap?chunkPoints:kTileCap;
 
-    // Three orientations priced on the same model, picked by the work one
+    // Four orientations priced on the same model, picked by the work one
     // core actually owns. No branch here looks at a particular shape.
     const uint64_t tiles=CeilDiv(chunkPoints,tilePoints);
     const uint64_t segRepeat=CeilDiv(m,kLanes);
@@ -61,15 +68,24 @@ static ge::graphStatus TilingFunc(gert::TilingContext *context) {
     const uint64_t costPointLanes=kDeriveCalls*segCall+tiles*kPointSetupCalls*kCall+
         17ULL*m*tiles*pointCall;
     const uint64_t costScalarLanes=(uint64_t)chunkPoints*m*kPair+tiles*kScalarTailCalls*kCall;
+
+    // Blocked lanes amortise the fixed issue cost of a call over a whole
+    // group of points measured against the same 64-segment window.
+    uint32_t group=kGroupCap<chunkPoints?kGroupCap:chunkPoints;
+    const uint64_t chunkCost=kChunkCalls*(kCall+kRepeat*group)+kCarryCalls*kCall;
+    const uint64_t groupCost=segRepeat*chunkCost+kGroupCalls*kCall;
+    const uint64_t costBlocked=kDeriveCalls*segCall+CeilDiv(chunkPoints,group)*groupCost;
+
     uint32_t mode=0;
     uint64_t best=costSegLanes;
     if(costPointLanes<best) { best=costPointLanes; mode=1; }
-    if(costScalarLanes<best) { mode=2; }
+    if(costScalarLanes<best) { best=costScalarLanes; mode=2; }
+    if(costBlocked<best) { mode=3; }
     t->mode=mode;
+    t->group=group;
 
     t->b=b; t->n=n; t->m=m;
     t->chunks=chunks; t->chunkPoints=chunkPoints; t->tilePoints=tilePoints;
-    t->reserved=0;
     const uint32_t tasks=b*chunks;
     context->SetBlockDim(tasks<cores?tasks:cores);
     uint32_t DT_TREE_POINTS=static_cast<uint32_t>(dtype);
