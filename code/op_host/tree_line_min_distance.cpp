@@ -10,9 +10,12 @@ constexpr uint32_t kGroupCap = 64;
 // ascend910b: a level-2 vector call costs a fixed issue overhead plus a few
 // cycles per 256B repeat, and one scalar point/segment pair costs about as
 // much as a short dependent float chain.
-constexpr uint64_t kCall = 75;
-constexpr uint64_t kRepeat = 4;
-constexpr uint64_t kPair = 150;
+constexpr uint64_t kCall = 32;
+constexpr uint64_t kRepeat = 3;
+constexpr uint64_t kPair = 60;
+// Measured cost of adding one more block to the launch: an empty kernel grows
+// from 1.76us at one block to 3.60us at forty-eight.
+constexpr uint64_t kBlock = 74;
 // Calls outside the inner loops: segment derivation, and the per-tile
 // gather/reduce/emit tails of each orientation.
 constexpr uint64_t kDeriveCalls = 18;
@@ -48,39 +51,43 @@ static ge::graphStatus TilingFunc(gert::TilingContext *context) {
     uint32_t cores=platform.GetCoreNumAiv();
     if(cores==0) cores=1;
 
-    // Spread point chunks over the batch so every core owns one contiguous run
-    // of points inside a single batch and prepares its segments only once.
-    uint32_t chunks=CeilDiv(cores,b);
-    if(chunks>n) chunks=n;
-    if(chunks==0) chunks=1;
-    uint32_t chunkPoints=CeilDiv(n,chunks);
-    chunks=CeilDiv(n,chunkPoints);
-    uint32_t tilePoints=chunkPoints<kTileCap?chunkPoints:kTileCap;
-
-    // Four orientations priced on the same model, picked by the work one
-    // core actually owns. No branch here looks at a particular shape.
-    const uint64_t tiles=CeilDiv(chunkPoints,tilePoints);
-    const uint64_t segRepeat=CeilDiv(m,kLanes);
-    const uint64_t pointRepeat=CeilDiv(tilePoints,kLanes);
-    const uint64_t segCall=kCall+kRepeat*segRepeat;
-    const uint64_t pointCall=kCall+kRepeat*pointRepeat;
-    const uint64_t costSegLanes=(kDeriveCalls+15ULL*chunkPoints)*segCall+tiles*kSegTailCalls*kCall;
-    const uint64_t costPointLanes=kDeriveCalls*segCall+tiles*kPointSetupCalls*kCall+
-        17ULL*m*tiles*pointCall;
-    const uint64_t costScalarLanes=(uint64_t)chunkPoints*m*kPair+tiles*kScalarTailCalls*kCall;
-
-    // Blocked lanes amortise the fixed issue cost of a call over a whole
-    // group of points measured against the same 64-segment window.
-    uint32_t group=kGroupCap<chunkPoints?kGroupCap:chunkPoints;
-    const uint64_t chunkCost=kChunkCalls*(kCall+kRepeat*group)+kCarryCalls*kCall;
-    const uint64_t groupCost=segRepeat*chunkCost+kGroupCalls*kCall;
-    const uint64_t costBlocked=kDeriveCalls*segCall+CeilDiv(chunkPoints,group)*groupCost;
-
-    uint32_t mode=0;
-    uint64_t best=costSegLanes;
-    if(costPointLanes<best) { best=costPointLanes; mode=1; }
-    if(costScalarLanes<best) { best=costScalarLanes; mode=2; }
-    if(costBlocked<best) { mode=3; }
+    // Choose how many point chunks each batch is split into together with the
+    // orientation, because the two trade against each other: more chunks keep
+    // more cores busy but shrink the group a blocked call can amortise over,
+    // and every extra block costs a fixed slice of the launch.
+    uint32_t span=CeilDiv(cores,b);
+    if(span>n) span=n;
+    if(span==0) span=1;
+    uint32_t chunks=span, chunkPoints=CeilDiv(n,span), tilePoints=1, group=1, mode=0;
+    uint64_t cheapest=~0ULL;
+    for(uint32_t probe=1;probe<=span;++probe) {
+        const uint32_t owned=CeilDiv(n,probe);
+        const uint32_t split=CeilDiv(n,owned);
+        const uint32_t tile=owned<kTileCap?owned:kTileCap;
+        const uint32_t pack=kGroupCap<owned?kGroupCap:owned;
+        const uint64_t tiles=CeilDiv(owned,tile);
+        const uint64_t segRepeat=CeilDiv(m,kLanes);
+        const uint64_t pointRepeat=CeilDiv(tile,kLanes);
+        const uint64_t segCall=kCall+kRepeat*segRepeat;
+        const uint64_t derive=kDeriveCalls*segCall;
+        const uint64_t costSegLanes=(kDeriveCalls+15ULL*owned)*segCall+tiles*kSegTailCalls*kCall;
+        const uint64_t costPointLanes=derive+tiles*kPointSetupCalls*kCall+
+            17ULL*m*tiles*(kCall+kRepeat*pointRepeat);
+        const uint64_t costScalarLanes=(uint64_t)owned*m*kPair+tiles*kScalarTailCalls*kCall;
+        const uint64_t chunkCost=kChunkCalls*(kCall+kRepeat*pack)+kCarryCalls*kCall;
+        const uint64_t costBlocked=derive+
+            CeilDiv(owned,pack)*(segRepeat*chunkCost+kGroupCalls*kCall);
+        uint32_t pick=0;
+        uint64_t inner=costSegLanes;
+        if(costPointLanes<inner) { inner=costPointLanes; pick=1; }
+        if(costScalarLanes<inner) { inner=costScalarLanes; pick=2; }
+        if(costBlocked<inner) { inner=costBlocked; pick=3; }
+        const uint64_t total=kBlock*(uint64_t)b*split+inner;
+        if(total<cheapest) {
+            cheapest=total;
+            chunks=split; chunkPoints=owned; tilePoints=tile; group=pack; mode=pick;
+        }
+    }
     t->mode=mode;
     t->group=group;
 
