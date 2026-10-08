@@ -74,9 +74,14 @@ static ge::graphStatus TilingFunc(gert::TilingContext *context) {
         const uint64_t costPointLanes=derive+tiles*kPointSetupCalls*kCall+
             17ULL*m*tiles*(kCall+kRepeat*pointRepeat);
         const uint64_t costScalarLanes=(uint64_t)owned*m*kPair+tiles*kScalarTailCalls*kCall;
-        const uint64_t chunkCost=kChunkCalls*(kCall+kRepeat*pack)+kCarryCalls*kCall;
-        const uint64_t costBlocked=derive+
-            CeilDiv(owned,pack)*(segRepeat*chunkCost+kGroupCalls*kCall);
+        // The repeat count a blocked call issues follows the points a core
+        // owns, while the fixed issue cost follows the number of groups, so
+        // the two are priced separately instead of rounding the work up to a
+        // whole group.
+        const uint64_t groups=CeilDiv(owned,pack);
+        const uint64_t chunkCost=kChunkCalls*(kCall*groups+kRepeat*owned)+
+            kCarryCalls*kCall*groups;
+        const uint64_t costBlocked=derive+segRepeat*chunkCost+kGroupCalls*kCall*groups;
         uint32_t pick=0;
         uint64_t inner=costSegLanes;
         if(costPointLanes<inner) { inner=costPointLanes; pick=1; }
