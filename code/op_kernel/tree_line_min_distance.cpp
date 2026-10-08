@@ -5,38 +5,37 @@
 using namespace AscendC;
 
 namespace {
-// Coordinates are finite reals, so a guard start point this far away always
-// loses the reduction while every intermediate square stays finite in fp32.
-constexpr float kGuardCoord = 1.0e19f;
+constexpr float kGuardDist = 3.0e38f;
+// A guard start point this far out loses every reduction while its squared
+// distance still fits comfortably inside fp32.
+constexpr float kGuardCoord = 1.0e18f;
 constexpr uint32_t kLanes = 64;   // fp32 elements in one 256B vector repeat
 
-// Single arena carved by hand. Segment parameters stay live across a whole
-// batch; the two views below reuse one overlay because segment preparation
-// always completes before the point tiles of that batch run.
+// Single arena carved by hand. Segment lane parameters stay live across a
+// whole batch, and the segment staging area is disjoint from the point tile
+// so both input transfers can be in flight at the same time.
 constexpr uint32_t oAx = 0, oAy = 1024, oAz = 2048;
 constexpr uint32_t oUx = 3072, oUy = 4096, oUz = 5120;
 constexpr uint32_t oKx = 6144, oKy = 7168, oKz = 8192;
-constexpr uint32_t oOverlay = 9216;
-// preparation view
-constexpr uint32_t oSegRaw = oOverlay;            // 6144 T
-constexpr uint32_t oSegFlt = oOverlay + 6144;     // 6144 float
-constexpr uint32_t oSegOff = oOverlay + 12288;    // 1024 uint32
-constexpr uint32_t oTmp0 = oOverlay + 13312;      // 1024 float
-constexpr uint32_t oTmp1 = oOverlay + 14336;      // 1024 float
-// tile view
-constexpr uint32_t oPtRaw = oOverlay;             // 1536 T
-constexpr uint32_t oPtOff = oOverlay + 1536;      // 512 uint32
-constexpr uint32_t oPx = oOverlay + 2048, oPy = oOverlay + 2560, oPz = oOverlay + 3072;
-constexpr uint32_t oDx = oOverlay + 3584, oDy = oOverlay + 4608, oDz = oOverlay + 5632;
-constexpr uint32_t oTt = oOverlay + 6656, oDsq = oOverlay + 7680;
-constexpr uint32_t oBest = oOverlay + 8704, oFidx = oOverlay + 9216;
-constexpr uint32_t oRes = oOverlay + 9728;        // 1024 float
-constexpr uint32_t oRedW = oOverlay + 10752;      // 512 float
-constexpr uint32_t oDist = oOverlay + 11264;      // 512 float
-constexpr uint32_t oIdx = oOverlay + 11776;       // 512 int32
-constexpr uint32_t oHalf = oOverlay + 12288;      // 512 half
-constexpr uint32_t oMask = oOverlay + 12544;      // 256B compare mask
-constexpr uint32_t oArena = oOverlay + 15360;     // arena size in floats
+constexpr uint32_t oSegRaw = 9216;    // 6144 T
+constexpr uint32_t oSegFlt = 15360;   // 6144 float, fp16 input only
+constexpr uint32_t oSegOff = 21504;   // 1024 uint32
+constexpr uint32_t oNegOne = 22528;   // 1024 float, constant -1
+constexpr uint32_t oLen = 23552;      // 1024 float
+constexpr uint32_t oInvLen = 24576;   // 1024 float
+constexpr uint32_t oPtRaw = 25600;    // 1536 T
+constexpr uint32_t oPtOff = 27136;    // 512 uint32
+constexpr uint32_t oPx = 27648, oPy = 28160, oPz = 28672;
+constexpr uint32_t oDx = 29184, oDy = 30208, oDz = 31232;
+constexpr uint32_t oTt = 32256, oDsq = 33280;
+constexpr uint32_t oBest = 34304, oFidx = 34816;
+constexpr uint32_t oRes = 35328;      // 1024 float
+constexpr uint32_t oRedW = 36352;     // 512 float
+constexpr uint32_t oDist = 36864;     // 512 float
+constexpr uint32_t oIdx = 37376;      // 512 int32
+constexpr uint32_t oHalf = 37888;     // 512 half
+constexpr uint32_t oMask = 38144;     // 256B compare mask
+constexpr uint32_t oArena = 38400;    // arena size in floats
 
 __aicore__ inline uint32_t AlignLanes(uint32_t v)
 {
@@ -70,6 +69,21 @@ public:
         indices.SetGlobalBuffer((__gm__ int32_t *)i);
         pipe->InitBuffer(arenaBuf, oArena * sizeof(float));
         arena = arenaBuf.Get<float>();
+        if (mode == 2) {
+            return;
+        }
+        // Lane-invariant tables and constants, built once per kernel.
+        LocalTensor<float> scratch = arena[oLen];
+        CreateVecIndex(scratch, 0.0f, mAligned);
+        Muls(scratch, scratch, 24.0f, mAligned);
+        Cast(arena[oSegOff].ReinterpretCast<int32_t>(), scratch, RoundMode::CAST_RINT, mAligned);
+        if (mode == 1) {
+            const uint32_t widest = AlignLanes(tilePoints);
+            CreateVecIndex(scratch, 0.0f, widest);
+            Muls(scratch, scratch, 12.0f, widest);
+            Cast(arena[oPtOff].ReinterpretCast<int32_t>(), scratch, RoundMode::CAST_RINT, widest);
+        }
+        Duplicate(arena[oNegOne], -1.0f, mAligned);
     }
 
     __aicore__ inline void Process()
@@ -87,16 +101,36 @@ public:
             if (owned > chunkPoints) {
                 owned = chunkPoints;
             }
-            if (cached != batch) {
-                PrepareSegments(batch);
+            const bool fresh = cached != batch;
+            // Both reads are issued before the barrier so the two global
+            // memory latencies overlap instead of stacking.
+            if (fresh) {
+                LoadSegments(batch);
+            }
+            const uint32_t head = owned < tilePoints ? owned : tilePoints;
+            LoadPoints(batch, begin, head);
+            PipeBarrier<PIPE_ALL>();
+            if (fresh) {
                 cached = batch;
+                if (mode != 2) {
+                    DeriveSegments();
+                    if (mode == 1) {
+                        PipeBarrier<PIPE_ALL>();
+                    }
+                }
             }
             for (uint32_t done = 0; done < owned; done += tilePoints) {
                 uint32_t count = owned - done;
                 if (count > tilePoints) {
                     count = tilePoints;
                 }
-                if (mode == 1) {
+                if (done != 0) {
+                    LoadPoints(batch, begin + done, count);
+                    PipeBarrier<PIPE_ALL>();
+                }
+                if (mode == 2) {
+                    ScalarLanes(batch, begin + done, count);
+                } else if (mode == 1) {
                     PointLanes(batch, begin + done, count);
                 } else {
                     SegmentLanes(batch, begin + done, count);
@@ -106,24 +140,36 @@ public:
     }
 
 private:
-    // Loads one batch of segments, splits the interleaved endpoints into lane
-    // arrays and derives the direction, the guarded inverse length and the
-    // fused projection coefficients once for the whole batch.
-    __aicore__ inline void PrepareSegments(uint32_t batch)
+    __aicore__ inline void LoadSegments(uint32_t batch)
     {
         LocalTensor<T> raw = arena[oSegRaw].template ReinterpretCast<T>();
         DataCopyPad(raw, segments[(uint64_t)batch * m * 6],
                     {1, (uint32_t)(m * 6 * sizeof(T)), 0, 0, 0}, {false, 0, 0, 0});
+    }
 
+    __aicore__ inline void LoadPoints(uint32_t batch, uint32_t start, uint32_t count)
+    {
+        LocalTensor<T> raw = arena[oPtRaw].template ReinterpretCast<T>();
+        DataCopyPad(raw, points[((uint64_t)batch * n + start) * 3],
+                    {1, (uint32_t)(count * 3 * sizeof(T)), 0, 0, 0}, {false, 0, 0, 0});
+    }
+
+    // Splits the interleaved endpoints into lane arrays and derives the
+    // direction, the guarded inverse length and the fused projection
+    // coefficients once for the whole batch.
+    __aicore__ inline void DeriveSegments()
+    {
+        LocalTensor<T> raw = arena[oSegRaw].template ReinterpretCast<T>();
         LocalTensor<float> ax = arena[oAx], ay = arena[oAy], az = arena[oAz];
         LocalTensor<float> ux = arena[oUx], uy = arena[oUy], uz = arena[oUz];
         LocalTensor<float> kx = arena[oKx], ky = arena[oKy], kz = arena[oKz];
-        LocalTensor<float> t0 = arena[oTmp0], t1 = arena[oTmp1];
-        LocalTensor<int32_t> offInt = arena[oSegOff].ReinterpretCast<int32_t>();
+        LocalTensor<float> len = arena[oLen], invLen = arena[oInvLen];
         LocalTensor<uint32_t> off = arena[oSegOff].ReinterpretCast<uint32_t>();
 
         if (mAligned != m) {
-            // Tail lanes must never win the reduction and must stay finite.
+            // Written before the gather and never touched by the count-M
+            // arithmetic below, so the tail keeps losing every reduction and
+            // the segment loops can run on whole 256B repeats.
             Duplicate(ax, kGuardCoord, mAligned);
             Duplicate(ay, kGuardCoord, mAligned);
             Duplicate(az, kGuardCoord, mAligned);
@@ -134,12 +180,6 @@ private:
             Duplicate(ky, 0.0f, mAligned);
             Duplicate(kz, 0.0f, mAligned);
         }
-        CreateVecIndex(t1, 0.0f, mAligned);
-        Muls(t1, t1, 24.0f, mAligned);
-        Cast(offInt, t1, RoundMode::CAST_RINT, mAligned);
-
-        PipeBarrier<PIPE_ALL>();
-
         LocalTensor<float> src = arena[oSegRaw];
         if constexpr (sizeof(T) == 2) {
             src = arena[oSegFlt];
@@ -155,23 +195,68 @@ private:
         Sub(ux, ux, ax, m);
         Sub(uy, uy, ay, m);
         Sub(uz, uz, az, m);
-
-        Duplicate(t0, 1.0f, mAligned);
-        Mul(t0, ux, ux, m);
-        MulAddDst(t0, uy, uy, m);
-        MulAddDst(t0, uz, uz, m);
+        Mul(len, ux, ux, m);
+        MulAddDst(len, uy, uy, m);
+        MulAddDst(len, uz, uz, m);
         // Exact zero-length test on the quantised value; no division by L = 0.
         LocalTensor<uint8_t> keep = arena[oMask].ReinterpretCast<uint8_t>();
-        CompareScalar(keep, t0, 0.0f, CMPMODE::NE, mAligned);
-        Select(t0, keep, t0, 1.0f, SELMODE::VSEL_TENSOR_SCALAR_MODE, mAligned);
-        Duplicate(t1, -1.0f, mAligned);
-        Div(t1, t1, t0, mAligned);
+        CompareScalar(keep, len, 0.0f, CMPMODE::NE, mAligned);
+        Select(len, keep, len, 1.0f, SELMODE::VSEL_TENSOR_SCALAR_MODE, mAligned);
+        Div(invLen, arena[oNegOne], len, mAligned);
         // Degenerate segments keep u = 0 exactly, so k = 0 and t clamps to 0.
-        Mul(kx, ux, t1, m);
-        Mul(ky, uy, t1, m);
-        Mul(kz, uz, t1, m);
+        Mul(kx, ux, invLen, m);
+        Mul(ky, uy, invLen, m);
+        Mul(kz, uz, invLen, m);
+    }
 
+    // Scalar lanes: the pair count one core owns is small enough that the
+    // fixed cost of a vector instruction outweighs the whole reduction.
+    __aicore__ inline void ScalarLanes(uint32_t batch, uint32_t start, uint32_t count)
+    {
+        LocalTensor<T> seg = arena[oSegRaw].template ReinterpretCast<T>();
+        LocalTensor<T> raw = arena[oPtRaw].template ReinterpretCast<T>();
+        LocalTensor<float> dist = arena[oDist];
+        LocalTensor<int32_t> idx = arena[oIdx].ReinterpretCast<int32_t>();
+        const int32_t total = (int32_t)m;
+        for (uint32_t p = 0; p < count; ++p) {
+            const float px = (float)raw.GetValue(3 * p);
+            const float py = (float)raw.GetValue(3 * p + 1);
+            const float pz = (float)raw.GetValue(3 * p + 2);
+            float best = kGuardDist;
+            int32_t winner = 0;
+            for (int32_t j = 0; j < total; ++j) {
+                const uint32_t base = 6u * (uint32_t)j;
+                const float ax = (float)seg.GetValue(base);
+                const float ay = (float)seg.GetValue(base + 1);
+                const float az = (float)seg.GetValue(base + 2);
+                const float ux = (float)seg.GetValue(base + 3) - ax;
+                const float uy = (float)seg.GetValue(base + 4) - ay;
+                const float uz = (float)seg.GetValue(base + 5) - az;
+                const float qx = px - ax;
+                const float qy = py - ay;
+                const float qz = pz - az;
+                const float dot = qx * ux + qy * uy + qz * uz;
+                const float len = ux * ux + uy * uy + uz * uz;
+                const float flat = qx * qx + qy * qy + qz * qz;
+                float d2;
+                if (dot <= 0.0f || len == 0.0f) {
+                    d2 = flat;                       // closest point is the start
+                } else if (dot >= len) {
+                    d2 = flat - dot - dot + len;     // closest point is the end
+                } else {
+                    d2 = flat - dot * dot / len;     // projection falls inside
+                }
+                if (d2 < best) {
+                    best = d2;
+                    winner = j;
+                }
+            }
+            dist.SetValue(p, best);
+            idx.SetValue(p, winner);
+        }
         PipeBarrier<PIPE_ALL>();
+        Sqrt(dist, dist, count);
+        Emit(batch, start, count, dist, idx);
     }
 
     // Segment lanes: one point at a time, the whole segment set in vector
@@ -179,37 +264,33 @@ private:
     __aicore__ inline void SegmentLanes(uint32_t batch, uint32_t start, uint32_t count)
     {
         LocalTensor<T> raw = arena[oPtRaw].template ReinterpretCast<T>();
-        DataCopyPad(raw, points[((uint64_t)batch * n + start) * 3],
-                    {1, (uint32_t)(count * 3 * sizeof(T)), 0, 0, 0}, {false, 0, 0, 0});
-
         LocalTensor<float> ax = arena[oAx], ay = arena[oAy], az = arena[oAz];
         LocalTensor<float> ux = arena[oUx], uy = arena[oUy], uz = arena[oUz];
         LocalTensor<float> kx = arena[oKx], ky = arena[oKy], kz = arena[oKz];
         LocalTensor<float> dx = arena[oDx], dy = arena[oDy], dz = arena[oDz];
         LocalTensor<float> tt = arena[oTt], dsq = arena[oDsq];
         LocalTensor<float> res = arena[oRes], work = arena[oRedW];
-
-        PipeBarrier<PIPE_ALL>();
+        const uint32_t lanes = mAligned;
 
         for (uint32_t p = 0; p < count; ++p) {
             const float px = (float)raw.GetValue(3 * p);
             const float py = (float)raw.GetValue(3 * p + 1);
             const float pz = (float)raw.GetValue(3 * p + 2);
-            Adds(dx, ax, -px, m);
-            Adds(dy, ay, -py, m);
-            Adds(dz, az, -pz, m);
-            Mul(tt, dx, kx, m);
-            MulAddDst(tt, dy, ky, m);
-            MulAddDst(tt, dz, kz, m);
-            Maxs(tt, tt, 0.0f, m);
-            Mins(tt, tt, 1.0f, m);
-            MulAddDst(dx, tt, ux, m);
-            MulAddDst(dy, tt, uy, m);
-            MulAddDst(dz, tt, uz, m);
-            Mul(dsq, dx, dx, m);
-            MulAddDst(dsq, dy, dy, m);
-            MulAddDst(dsq, dz, dz, m);
-            ReduceMin(res[2 * p], dsq, work, m, true);
+            Adds(dx, ax, -px, lanes);
+            Adds(dy, ay, -py, lanes);
+            Adds(dz, az, -pz, lanes);
+            Mul(tt, dx, kx, lanes);
+            MulAddDst(tt, dy, ky, lanes);
+            MulAddDst(tt, dz, kz, lanes);
+            Maxs(tt, tt, 0.0f, lanes);
+            Mins(tt, tt, 1.0f, lanes);
+            MulAddDst(dx, tt, ux, lanes);
+            MulAddDst(dy, tt, uy, lanes);
+            MulAddDst(dz, tt, uz, lanes);
+            Mul(dsq, dx, dx, lanes);
+            MulAddDst(dsq, dy, dy, lanes);
+            MulAddDst(dsq, dz, dz, lanes);
+            ReduceMin(res[2 * p], dsq, work, lanes, true);
         }
 
         LocalTensor<float> dist = arena[oDist];
@@ -229,9 +310,6 @@ private:
     {
         const uint32_t wide = AlignLanes(count);
         LocalTensor<T> raw = arena[oPtRaw].template ReinterpretCast<T>();
-        DataCopyPad(raw, points[((uint64_t)batch * n + start) * 3],
-                    {1, (uint32_t)(count * 3 * sizeof(T)), 0, 0, 0}, {false, 0, 0, 0});
-
         LocalTensor<float> ax = arena[oAx], ay = arena[oAy], az = arena[oAz];
         LocalTensor<float> ux = arena[oUx], uy = arena[oUy], uz = arena[oUz];
         LocalTensor<float> kx = arena[oKx], ky = arena[oKy], kz = arena[oKz];
@@ -239,20 +317,15 @@ private:
         LocalTensor<float> dx = arena[oDx], dy = arena[oDy], dz = arena[oDz];
         LocalTensor<float> tt = arena[oTt], dsq = arena[oDsq];
         LocalTensor<float> best = arena[oBest], fidx = arena[oFidx];
-        LocalTensor<int32_t> offInt = arena[oPtOff].ReinterpretCast<int32_t>();
         LocalTensor<uint32_t> off = arena[oPtOff].ReinterpretCast<uint32_t>();
         LocalTensor<uint8_t> keep = arena[oMask].ReinterpretCast<uint8_t>();
 
-        CreateVecIndex(tt, 0.0f, wide);
-        Muls(tt, tt, 12.0f, wide);
-        Cast(offInt, tt, RoundMode::CAST_RINT, wide);
-        // Padding lanes hold finite coordinates so no tail lane produces NaN.
-        Duplicate(px, 0.0f, wide);
-        Duplicate(py, 0.0f, wide);
-        Duplicate(pz, 0.0f, wide);
-
-        PipeBarrier<PIPE_ALL>();
-
+        if (count != wide) {
+            // Padding lanes hold finite coordinates so no tail lane makes NaN.
+            Duplicate(px, 0.0f, wide);
+            Duplicate(py, 0.0f, wide);
+            Duplicate(pz, 0.0f, wide);
+        }
         LocalTensor<float> src = arena[oPtRaw];
         if constexpr (sizeof(T) == 2) {
             src = arena[oDx];
@@ -268,7 +341,8 @@ private:
         Muls(pz, pz, -1.0f, wide);
         Duplicate(fidx, 0.0f, wide);
 
-        for (int32_t j = 0; j < (int32_t)m; ++j) {
+        const int32_t total = (int32_t)m;
+        for (int32_t j = 0; j < total; ++j) {
             const float sax = ax.GetValue(j);
             const float say = ay.GetValue(j);
             const float saz = az.GetValue(j);
@@ -322,8 +396,8 @@ private:
                         {1, (uint32_t)(count * sizeof(T)), 0, 0, 0});
         } else {
             PipeBarrier<PIPE_ALL>();
-            LocalTensor<T> wide = dist.template ReinterpretCast<T>();
-            DataCopyPad(distances[(uint64_t)batch * n + start], wide,
+            LocalTensor<T> plain = dist.template ReinterpretCast<T>();
+            DataCopyPad(distances[(uint64_t)batch * n + start], plain,
                         {1, (uint32_t)(count * sizeof(T)), 0, 0, 0});
         }
         DataCopyPad(indices[(uint64_t)batch * n + start], idx, {1, count * 4, 0, 0, 0});
