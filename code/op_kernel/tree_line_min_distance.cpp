@@ -44,9 +44,6 @@ constexpr uint32_t oDist = 39400;     // 512 float
 constexpr uint32_t oIdx = 39912;      // 512 int32
 constexpr uint32_t oHalf = 40424;     // 512 half
 constexpr uint32_t oMask = 40680;     // 256B compare mask
-constexpr uint32_t oSpatialCenter = 40744, oSpatialRow = 41256;
-constexpr uint32_t oSpatialAbsPX = 41768, oSpatialTest = 42280, oSpatialEdge = 42792;
-constexpr uint32_t oSpatialArena = 43304;
 constexpr uint32_t oArena = 40744;    // arena size in floats
 
 __aicore__ inline uint32_t AlignLanes(uint32_t v)
@@ -65,7 +62,7 @@ __aicore__ inline void Hop()
 }
 }  // namespace
 
-template <typename T, uint32_t MODE, bool SPATIAL = false>
+template <typename T, uint32_t MODE>
 class KernelTreeLineMinDistance {
     GlobalTensor<T> points, segments, distances;
     GlobalTensor<int32_t> indices;
@@ -74,8 +71,6 @@ class KernelTreeLineMinDistance {
     static constexpr uint32_t mode = MODE;
     uint32_t b, n, m, chunks, chunkPoints, tilePoints, group;
     uint32_t mAligned, mRepeat;
-    bool ordered = false;
-    float firstCenter = 0.0f, spatialScale = 0.0f;
 
 public:
     __aicore__ inline void Init(GM_ADDR p, GM_ADDR s, GM_ADDR d, GM_ADDR i,
@@ -94,7 +89,7 @@ public:
         segments.SetGlobalBuffer((__gm__ T *)s);
         distances.SetGlobalBuffer((__gm__ T *)d);
         indices.SetGlobalBuffer((__gm__ int32_t *)i);
-        pipe->InitBuffer(arenaBuf, (SPATIAL ? oSpatialArena : oArena) * sizeof(float));
+        pipe->InitBuffer(arenaBuf, oArena * sizeof(float));
         arena = arenaBuf.Get<float>();
         if (mode == 2) {
             return;
@@ -116,193 +111,6 @@ public:
             Cast(scratch, whole, RoundMode::CAST_NONE, span);
             Muls(scratch, scratch, 4.0f, span);
             Cast(whole, scratch, RoundMode::CAST_RINT, span);
-        }
-        Duplicate(arena[oNegOne], -1.0f, mAligned);
-    }
-
-    __aicore__ inline bool PrepareIntervals()
-    {
-        LocalTensor<float> geom = arena[oAx];
-        LocalTensor<T> raw = arena[oSegRaw].template ReinterpretCast<T>();
-        if constexpr (sizeof(T) == 2) Cast(geom, raw, RoundMode::CAST_NONE, m * 6);
-        else DataCopy(geom, arena[oSegRaw], ((m * 6 + 7) / 8) * 8);
-        LocalTensor<float> ax = arena[oLen], cx = arena[oInvLen];
-        LocalTensor<float> lo = arena[oKx], hi = arena[oKy], gap = arena[oInvLen];
-        LocalTensor<uint32_t> off = arena[oSegOff].ReinterpretCast<uint32_t>();
-        Gather(ax, geom, off, 0u, m);
-        Gather(cx, geom, off, 12u, m);
-        Min(lo, ax, cx, m);
-        Max(hi, ax, cx, m);
-        Gather(ax, geom, off, 24u, m - 1);
-        Gather(cx, geom, off, 36u, m - 1);
-        Min(ax, ax, cx, m - 1);
-        Sub(gap, ax, hi, m - 1);
-        ReduceMin(arena[oPair], gap, arena[oRedW], m - 1, false);
-        Hop<HardEvent::V_S>();
-        if (arena[oPair].GetValue(0) < 0.0f) return false;
-        firstCenter = 0.5f * lo.GetValue(0) + 0.5f * hi.GetValue(0);
-        const float last = 0.5f * lo.GetValue(m - 1) + 0.5f * hi.GetValue(m - 1);
-        const float extent = last - firstCenter;
-        if (!(extent > 0.0f) || extent > 3.0e38f) return false;
-        spatialScale = (float)(int32_t)(m - 1) / extent;
-        return spatialScale <= 3.0e38f;
-    }
-
-    __aicore__ inline float RawCandidate(uint32_t j, float px, float py, float pz)
-    {
-        LocalTensor<float> geom = arena[oAx];
-        const uint32_t offset = j * 6;
-        const float ax = geom.GetValue(offset), ay = geom.GetValue(offset + 1), az = geom.GetValue(offset + 2);
-        const float ux = geom.GetValue(offset + 3) - ax;
-        const float uy = geom.GetValue(offset + 4) - ay;
-        const float uz = geom.GetValue(offset + 5) - az;
-        float dx = px - ax, dy = py - ay, dz = pz - az;
-        const float dot = dx * ux + dy * uy + dz * uz;
-        const float len = ux * ux + uy * uy + uz * uz;
-        if (len > 0.0f && dot > 0.0f) {
-            const float ratio = dot < len ? dot / len : 1.0f;
-            dx -= ratio * ux; dy -= ratio * uy; dz -= ratio * uz;
-        }
-        return dx * dx + dy * dy + dz * dz;
-    }
-
-    __aicore__ inline bool SpatialScalar(uint32_t batch, uint32_t start, uint32_t count)
-    {
-        LocalTensor<T> raw = arena[oPtRaw].template ReinterpretCast<T>();
-        LocalTensor<float> lo = arena[oKx], hi = arena[oKy], dist = arena[oDist];
-        LocalTensor<int32_t> idx = arena[oIdx].ReinterpretCast<int32_t>();
-        for (uint32_t p = 0; p < count; ++p) {
-            const float px = (float)raw.GetValue(3 * p);
-            const float py = (float)raw.GetValue(3 * p + 1);
-            const float pz = (float)raw.GetValue(3 * p + 2);
-            const float estimate = (px - firstCenter) * spatialScale + 0.5f;
-            const uint32_t center = estimate <= 0.0f ? 0 : (estimate >= (float)(int32_t)(m - 1) ? m - 1 : (uint32_t)(int32_t)estimate);
-            const uint32_t left = center > 2 ? center - 2 : 0;
-            const uint32_t right = center + 2 < m ? center + 2 : m - 1;
-            float best = kGuardDist;
-            int32_t winner = 0;
-            for (uint32_t j = left; j <= right; ++j) {
-                const float value = RawCandidate(j, px, py, pz);
-                if (value < best) { best = value; winner = (int32_t)j; }
-            }
-            const float absPx = px < 0.0f ? -px : px;
-            if (left > 0) {
-                const float edge = hi.GetValue(left - 1);
-                const float absEdge = edge < 0.0f ? -edge : edge;
-                const float bound = px - edge - 1.0e-5f * (1.0f + absPx + absEdge);
-                if (!(bound > 0.0f && bound * bound > best)) return false;
-            }
-            if (right + 1 < m) {
-                const float edge = lo.GetValue(right + 1);
-                const float absEdge = edge < 0.0f ? -edge : edge;
-                const float bound = edge - px - 1.0e-5f * (1.0f + absPx + absEdge);
-                if (!(bound > 0.0f && bound * bound > best)) return false;
-            }
-            dist.SetValue(p, best); idx.SetValue(p, winner);
-        }
-        Hop<HardEvent::S_V>();
-        Sqrt(dist, dist, count);
-        Emit(batch, start, count, dist, idx);
-        return true;
-    }
-
-    __aicore__ inline void VectorCandidate(int32_t shift, uint32_t wide)
-    {
-        LocalTensor<float> geom = arena[oAx], candidate = arena[oSpatialTest];
-        LocalTensor<float> dx = arena[oDx], dy = arena[oDy], dz = arena[oDz];
-        LocalTensor<float> ux = arena[oTt], uy = arena[oDsq], uz = arena[oInvLen];
-        LocalTensor<float> len = arena[oLen], ratio = arena[oRes];
-        LocalTensor<int32_t> offset = arena[oIdx].ReinterpretCast<int32_t>();
-        LocalTensor<uint8_t> keep = arena[oMask].ReinterpretCast<uint8_t>();
-        Adds(candidate, arena[oSpatialCenter], (float)shift, wide);
-        Maxs(candidate, candidate, 0.0f, wide);
-        Mins(candidate, candidate, (float)(int32_t)(m - 1), wide);
-        Muls(ratio, candidate, 24.0f, wide);
-        Cast(offset, ratio, RoundMode::CAST_RINT, wide);
-        LocalTensor<uint32_t> off = offset.ReinterpretCast<uint32_t>();
-        Gather(dx, geom, off, 0u, wide); Gather(dy, geom, off, 4u, wide);
-        Gather(dz, geom, off, 8u, wide); Gather(ux, geom, off, 12u, wide);
-        Gather(uy, geom, off, 16u, wide); Gather(uz, geom, off, 20u, wide);
-        Sub(ux, ux, dx, wide); Sub(uy, uy, dy, wide); Sub(uz, uz, dz, wide);
-        Sub(dx, dx, arena[oPxv], wide); Sub(dy, dy, arena[oPyv], wide); Sub(dz, dz, arena[oPzv], wide);
-        Mul(len, ux, ux, wide); MulAddDst(len, uy, uy, wide); MulAddDst(len, uz, uz, wide);
-        Mul(ratio, dx, ux, wide); MulAddDst(ratio, dy, uy, wide); MulAddDst(ratio, dz, uz, wide);
-        CompareScalar(keep, len, 0.0f, CMPMODE::NE, wide);
-        Select(len, keep, len, 1.0f, SELMODE::VSEL_TENSOR_SCALAR_MODE, wide);
-        Div(ratio, ratio, len, wide); Muls(ratio, ratio, -1.0f, wide);
-        Maxs(ratio, ratio, 0.0f, wide); Mins(ratio, ratio, 1.0f, wide);
-        MulAddDst(dx, ratio, ux, wide); MulAddDst(dy, ratio, uy, wide); MulAddDst(dz, ratio, uz, wide);
-        Mul(dx, dx, dx, wide); MulAddDst(dx, dy, dy, wide); MulAddDst(dx, dz, dz, wide);
-        Compare(keep, dx, arena[oBest], CMPMODE::LT, wide);
-        Min(arena[oBest], arena[oBest], dx, wide);
-        Select(arena[oFidx], keep, candidate, arena[oFidx], SELMODE::VSEL_TENSOR_TENSOR_MODE, wide);
-    }
-
-    __aicore__ inline bool CheckOutside(int32_t shift, uint32_t count, uint32_t wide)
-    {
-        LocalTensor<float> test = arena[oSpatialTest], edge = arena[oSpatialEdge];
-        LocalTensor<float> temp = arena[oLen], offFloat = arena[oRes];
-        LocalTensor<uint8_t> keep = arena[oMask].ReinterpretCast<uint8_t>();
-        LocalTensor<int32_t> offset = arena[oIdx].ReinterpretCast<int32_t>();
-        Adds(test, arena[oSpatialCenter], (float)shift, wide);
-        if (shift < 0) CompareScalar(keep, test, 0.0f, CMPMODE::GE, wide);
-        else CompareScalar(keep, test, (float)(int32_t)m, CMPMODE::LT, wide);
-        Maxs(offFloat, test, 0.0f, wide); Mins(offFloat, offFloat, (float)(int32_t)(m - 1), wide);
-        Muls(offFloat, offFloat, 4.0f, wide);
-        Cast(offset, offFloat, RoundMode::CAST_RINT, wide);
-        Gather(edge, shift < 0 ? arena[oKy] : arena[oKx], offset.ReinterpretCast<uint32_t>(), 0u, wide);
-        Abs(temp, edge, wide); Add(temp, temp, arena[oSpatialAbsPX], wide);
-        Adds(temp, temp, 1.0f, wide); Muls(temp, temp, 1.0e-5f, wide);
-        if (shift < 0) Sub(test, arena[oPxv], edge, wide);
-        else Sub(test, edge, arena[oPxv], wide);
-        Sub(test, test, temp, wide); Maxs(test, test, 0.0f, wide);
-        Mul(test, test, test, wide); Sub(test, test, arena[oBest], wide);
-        Select(test, keep, test, kGuardDist, SELMODE::VSEL_TENSOR_SCALAR_MODE, wide);
-        CompareScalar(keep, arena[oSpatialRow], (float)(int32_t)count, CMPMODE::LT, wide);
-        Select(test, keep, test, kGuardDist, SELMODE::VSEL_TENSOR_SCALAR_MODE, wide);
-        ReduceMin(arena[oPair], test, arena[oRedW], wide, false);
-        Hop<HardEvent::V_S>();
-        return arena[oPair].GetValue(0) > 0.0f;
-    }
-
-    __aicore__ inline bool SpatialVector(uint32_t batch, uint32_t start, uint32_t count)
-    {
-        const uint32_t wide = AlignLanes(count);
-        LocalTensor<T> raw = arena[oPtRaw].template ReinterpretCast<T>();
-        LocalTensor<float> src = arena[oPtRaw];
-        if constexpr (sizeof(T) == 2) {
-            src = arena[oPtFlt]; Cast(src, raw, RoundMode::CAST_NONE, count * 3);
-        }
-        LocalTensor<uint32_t> off = arena[oPtOff].ReinterpretCast<uint32_t>();
-        Duplicate(arena[oPxv], 0.0f, wide); Duplicate(arena[oPyv], 0.0f, wide); Duplicate(arena[oPzv], 0.0f, wide);
-        Gather(arena[oPxv], src, off, 0u, count);
-        Gather(arena[oPyv], src, off, 4u, count);
-        Gather(arena[oPzv], src, off, 8u, count);
-        Abs(arena[oSpatialAbsPX], arena[oPxv], wide);
-        LocalTensor<float> center = arena[oSpatialCenter];
-        LocalTensor<int32_t> integral = arena[oIdx].ReinterpretCast<int32_t>();
-        Adds(center, arena[oPxv], -firstCenter, wide);
-        Muls(center, center, spatialScale, wide); Adds(center, center, 0.5f, wide);
-        Maxs(center, center, 0.0f, wide); Mins(center, center, (float)(int32_t)(m - 1), wide);
-        Cast(integral, center, RoundMode::CAST_FLOOR, wide);
-        Cast(center, integral, RoundMode::CAST_NONE, wide);
-        CreateVecIndex(arena[oSpatialRow], 0.0f, wide);
-        Duplicate(arena[oBest], kGuardDist, wide); Duplicate(arena[oFidx], 0.0f, wide);
-        for (int32_t shift = -2; shift <= 2; ++shift) VectorCandidate(shift, wide);
-        if (!CheckOutside(-3, count, wide) || !CheckOutside(3, count, wide)) return false;
-        LocalTensor<float> dist = arena[oDist];
-        LocalTensor<int32_t> out = arena[oIdx].ReinterpretCast<int32_t>();
-        Sqrt(dist, arena[oBest], count); Cast(out, arena[oFidx], RoundMode::CAST_RINT, count);
-        Emit(batch, start, count, dist, out);
-        return true;
-    }
-
-    __aicore__ inline void RestoreGeometry()
-    {
-        if constexpr (sizeof(T) == 2) {
-            Cast(arena[oSegRaw].template ReinterpretCast<T>(), arena[oAx], RoundMode::CAST_RINT, m * 6);
-        } else {
-            DataCopy(arena[oSegRaw], arena[oAx], ((m * 6 + 7) / 8) * 8);
         }
         Duplicate(arena[oNegOne], -1.0f, mAligned);
     }
@@ -345,15 +153,7 @@ public:
                 cached = batch;
                 if (mode != 2) {
                     Hop<HardEvent::MTE2_V>();
-                    if constexpr (SPATIAL) {
-                        ordered = PrepareIntervals();
-                        if (!ordered) {
-                            RestoreGeometry();
-                            DeriveSegments();
-                        }
-                    } else {
-                        DeriveSegments();
-                    }
+                    DeriveSegments();
                 }
             }
             if (mode == 1) {
@@ -391,27 +191,6 @@ public:
                     } else {
                         Hop<HardEvent::MTE2_V>();
                     }
-                }
-                bool spatialDone = false;
-                if constexpr (SPATIAL) {
-                    if (ordered) {
-                        if constexpr (mode == 0) {
-                            Hop<HardEvent::MTE2_S>();
-                            spatialDone = SpatialScalar(batch, begin + done, count);
-                        } else {
-                            spatialDone = SpatialVector(batch, begin + done, count);
-                        }
-                        if (!spatialDone) {
-                            ordered = false;
-                            Hop<HardEvent::S_V>();
-                            RestoreGeometry();
-                            DeriveSegments();
-                            if constexpr (mode == 1) Hop<HardEvent::V_S>();
-                        }
-                    }
-                }
-                if (spatialDone) {
-                    continue;
                 }
                 if (mode == 3) {
                     BlockedLanes(batch, begin + done, count);
@@ -968,7 +747,7 @@ __aicore__ inline void SinglePoint(GM_ADDR p, GM_ADDR s, GM_ADDR d, GM_ADDR i)
     distances.SetGlobalBuffer((__gm__ T *)d, 1);
     indices.SetGlobalBuffer((__gm__ int32_t *)i, 1);
     LocalTensor<T> pt(TPosition::VECCALC, 0, 16);
-    LocalTensor<T> seg(TPosition::VECCALC, 64, 16);
+    LocalTensor<T> seg(TPosition::VECCALC, 64, 64);
     LocalTensor<float> dist(TPosition::VECCALC, 128, 8);
     LocalTensor<int32_t> idx(TPosition::VECCALC, 160, 8);
     LocalTensor<T> narrow(TPosition::VECCALC, 192, 16);
@@ -1020,7 +799,9 @@ __global__ __aicore__ void tree_line_min_distance(GM_ADDR tree_points, GM_ADDR l
                                                   GM_ADDR workspace, GM_ADDR tiling)
 {
     REGISTER_TILING_DEFAULT(TreeLineMinDistanceTilingData);
-    if constexpr (PATH == 2) {
+    if constexpr (PATH >= 21) {
+        SinglePoint<DT_TREE_POINTS, PATH - 18>(tree_points, line_segments, min_distance, nearest_segment_idx);
+    } else if constexpr (PATH == 2) {
         SinglePoint<DT_TREE_POINTS, 1>(tree_points, line_segments, min_distance, nearest_segment_idx);
     } else if constexpr (PATH == 3) {
         SinglePoint<DT_TREE_POINTS, 2>(tree_points, line_segments, min_distance, nearest_segment_idx);
@@ -1032,7 +813,7 @@ __global__ __aicore__ void tree_line_min_distance(GM_ADDR tree_points, GM_ADDR l
             ScalarTask<DT_TREE_POINTS>(tree_points, line_segments, min_distance, nearest_segment_idx, t);
         } else {
             TPipe pipe;
-            KernelTreeLineMinDistance<DT_TREE_POINTS, PATH == 5 || PATH == 13 ? 1 : (PATH == 6 || PATH == 11 ? 3 : 0), PATH >= 11> op;
+            KernelTreeLineMinDistance<DT_TREE_POINTS, PATH == 5 ? 1 : (PATH == 6 ? 3 : 0)> op;
             op.Init(tree_points, line_segments, min_distance, nearest_segment_idx, t, &pipe);
             if constexpr (PATH == 10) op.ProcessOne();
             else op.Process();
