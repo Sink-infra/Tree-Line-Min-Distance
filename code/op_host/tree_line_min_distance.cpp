@@ -122,6 +122,10 @@ static ge::graphStatus TilingFunc(gert::TilingContext *context) {
         t->group = 96;
         PATH = 50;
     }
+    if (mode == 3 && chunkPoints >= 128 && m >= 128) {
+        t->group = 128; t->tilePoints = 128;
+        PATH = 51;
+    }
     if (n > 1 && n <= 8 && m <= 2) { PATH = 60 + (m - 1) * 7 + n - 2; context->SetBlockDim(b); }
     if (n <= 8 && m >= 9 && m <= 64 && b * n <= cores) PATH = 80;
     ASCENDC_TPL_SEL_PARAM(context,DT_TREE_POINTS,PATH);
