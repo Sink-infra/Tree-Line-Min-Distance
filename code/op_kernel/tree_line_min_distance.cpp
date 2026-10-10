@@ -62,41 +62,41 @@ __aicore__ inline void Hop()
 }
 }  // namespace
 
-template <typename T, uint32_t MODE, bool LARGE = false>
+template <typename T, uint32_t MODE, bool LARGE = false, bool SHORT = false, bool WIDE = false>
 class KernelTreeLineMinDistance {
-    static constexpr uint32_t oDx = LARGE ? 9224 : ::oDx;
-    static constexpr uint32_t oDy = LARGE ? 15376 : ::oDy;
-    static constexpr uint32_t oDz = LARGE ? 21528 : ::oDz;
-    static constexpr uint32_t oTt = LARGE ? 27680 : ::oTt;
-    static constexpr uint32_t oDsq = LARGE ? 9224 : ::oDsq;
+    static constexpr uint32_t oDx = WIDE ? 9224 : LARGE ? 9224 : ::oDx;
+    static constexpr uint32_t oDy = WIDE ? 17424 : LARGE ? 15376 : ::oDy;
+    static constexpr uint32_t oDz = WIDE ? 25624 : LARGE ? 21528 : ::oDz;
+    static constexpr uint32_t oTt = WIDE ? 33824 : LARGE ? 27680 : ::oTt;
+    static constexpr uint32_t oDsq = WIDE ? 9224 : LARGE ? 9224 : ::oDsq;
     static constexpr uint32_t oSegRaw = LARGE ? 9224 : ::oSegRaw;
     static constexpr uint32_t oSegFlt = LARGE ? 15376 : ::oSegFlt;
     static constexpr uint32_t oNegOne = LARGE ? 21528 : ::oNegOne;
     static constexpr uint32_t oLen = LARGE ? 22552 : ::oLen;
     static constexpr uint32_t oInvLen = LARGE ? 23576 : ::oInvLen;
-    static constexpr uint32_t oSegOff = LARGE ? 33824 : ::oSegOff;
-    static constexpr uint32_t oPtRaw = LARGE ? 34848 : ::oPtRaw;
-    static constexpr uint32_t oPtFlt = LARGE ? 36384 : ::oPtFlt;
-    static constexpr uint32_t oPtOff = LARGE ? 37920 : ::oPtOff;
-    static constexpr uint32_t oDiv8 = LARGE ? 38432 : ::oDiv8;
-    static constexpr uint32_t oPx = LARGE ? 39200 : ::oPx;
-    static constexpr uint32_t oPy = LARGE ? 39328 : ::oPy;
-    static constexpr uint32_t oPz = LARGE ? 39456 : ::oPz;
-    static constexpr uint32_t oPxv = LARGE ? 39584 : ::oPxv;
-    static constexpr uint32_t oPyv = LARGE ? 40352 : ::oPyv;
-    static constexpr uint32_t oPzv = LARGE ? 41120 : ::oPzv;
-    static constexpr uint32_t oPair = LARGE ? 41888 : ::oPair;
-    static constexpr uint32_t oCmin = LARGE ? 42144 : ::oCmin;
-    static constexpr uint32_t oCidx = LARGE ? 42272 : ::oCidx;
-    static constexpr uint32_t oBest = LARGE ? 42400 : ::oBest;
-    static constexpr uint32_t oFidx = LARGE ? 42912 : ::oFidx;
-    static constexpr uint32_t oRes = LARGE ? 43424 : ::oRes;
-    static constexpr uint32_t oRedW = LARGE ? 44448 : ::oRedW;
-    static constexpr uint32_t oDist = LARGE ? 44960 : ::oDist;
-    static constexpr uint32_t oIdx = LARGE ? 45472 : ::oIdx;
-    static constexpr uint32_t oHalf = LARGE ? 45984 : ::oHalf;
-    static constexpr uint32_t oMask = LARGE ? 46240 : ::oMask;
-    static constexpr uint32_t oArena = LARGE ? 46304 : ::oArena;
+    static constexpr uint32_t oSegOff = WIDE ? 42016 : LARGE ? 33824 : ::oSegOff;
+    static constexpr uint32_t oPtRaw = WIDE ? 43040 : LARGE ? 34848 : ::oPtRaw;
+    static constexpr uint32_t oPtFlt = WIDE ? 43424 : LARGE ? 36384 : ::oPtFlt;
+    static constexpr uint32_t oPtOff = WIDE ? 43808 : LARGE ? 37920 : ::oPtOff;
+    static constexpr uint32_t oDiv8 = WIDE ? 43936 : LARGE ? 38432 : ::oDiv8;
+    static constexpr uint32_t oPx = WIDE ? 43936 : LARGE ? 39200 : ::oPx;
+    static constexpr uint32_t oPy = WIDE ? 44064 : LARGE ? 39328 : ::oPy;
+    static constexpr uint32_t oPz = WIDE ? 44192 : LARGE ? 39456 : ::oPz;
+    static constexpr uint32_t oPxv = WIDE ? 44320 : LARGE ? 39584 : ::oPxv;
+    static constexpr uint32_t oPyv = WIDE ? 44320 : LARGE ? 40352 : ::oPyv;
+    static constexpr uint32_t oPzv = WIDE ? 44320 : LARGE ? 41120 : ::oPzv;
+    static constexpr uint32_t oPair = WIDE ? 45344 : LARGE ? 41888 : ::oPair;
+    static constexpr uint32_t oCmin = WIDE ? 45600 : LARGE ? 42144 : ::oCmin;
+    static constexpr uint32_t oCidx = WIDE ? 45728 : LARGE ? 42272 : ::oCidx;
+    static constexpr uint32_t oBest = WIDE ? 45856 : LARGE ? 42400 : ::oBest;
+    static constexpr uint32_t oFidx = WIDE ? 45984 : LARGE ? 42912 : ::oFidx;
+    static constexpr uint32_t oRes = WIDE ? 46112 : LARGE ? 43424 : ::oRes;
+    static constexpr uint32_t oRedW = WIDE ? 46112 : LARGE ? 44448 : ::oRedW;
+    static constexpr uint32_t oDist = WIDE ? 46112 : LARGE ? 44960 : ::oDist;
+    static constexpr uint32_t oIdx = WIDE ? 46240 : LARGE ? 45472 : ::oIdx;
+    static constexpr uint32_t oHalf = WIDE ? 46368 : LARGE ? 45984 : ::oHalf;
+    static constexpr uint32_t oMask = WIDE ? 46432 : LARGE ? 46240 : ::oMask;
+    static constexpr uint32_t oArena = WIDE ? 46496 : LARGE ? 46304 : ::oArena;
     GlobalTensor<T> points, segments, distances;
     GlobalTensor<int32_t> indices;
     TBuf<TPosition::VECCALC> arenaBuf;
@@ -116,7 +116,7 @@ public:
         chunkPoints = t.chunkPoints;
         tilePoints = t.tilePoints;
         group = t.group;
-        mAligned = AlignLanes(m);
+        mAligned = SHORT ? kLanes : AlignLanes(m);
         mRepeat = mAligned / kLanes;
         points.SetGlobalBuffer((__gm__ T *)p);
         segments.SetGlobalBuffer((__gm__ T *)s);
@@ -350,17 +350,33 @@ private:
             Gather(px, src, ptOff, base, span);
             Gather(py, src, ptOff, base + 4u, span);
             Gather(pz, src, ptOff, base + 8u, span);
+            if constexpr (!WIDE) {
             Brcb(pxv, px, (uint8_t)((span + 7) / 8), {1, 8});
             Brcb(pyv, py, (uint8_t)((span + 7) / 8), {1, 8});
             Brcb(pzv, pz, (uint8_t)((span + 7) / 8), {1, 8});
-            Duplicate(best, kGuardDist, carry);
-            Duplicate(bidx, 0.0f, carry);
+            }
+            if constexpr (!SHORT) {
+                Duplicate(best, kGuardDist, carry);
+                Duplicate(bidx, 0.0f, carry);
+            }
 
-            for (uint32_t r = 0; r < mRepeat; ++r) {
+            for (uint32_t r = 0; r < (SHORT ? 1u : mRepeat); ++r) {
                 const uint32_t seg = r * kLanes;
                 SetVectorMask<float>((int32_t)kLanes);
+                if constexpr (WIDE) {
+                    PipeBarrier<PIPE_V>();
+                    Brcb(pxv, px, (uint8_t)((span + 7) / 8), {1, 8});
+                }
                 Sub<float, false>(dx, ax[seg], pxv, MASK_PLACEHOLDER, reps, spread);
+                if constexpr (WIDE) {
+                    PipeBarrier<PIPE_V>();
+                    Brcb(pxv, py, (uint8_t)((span + 7) / 8), {1, 8});
+                }
                 Sub<float, false>(dy, ay[seg], pyv, MASK_PLACEHOLDER, reps, spread);
+                if constexpr (WIDE) {
+                    PipeBarrier<PIPE_V>();
+                    Brcb(pxv, pz, (uint8_t)((span + 7) / 8), {1, 8});
+                }
                 Sub<float, false>(dz, az[seg], pzv, MASK_PLACEHOLDER, reps, spread);
                 Mul<float, false>(tt, dx, kx[seg], MASK_PLACEHOLDER, reps, fold);
                 MulAddDst<float, float, false>(tt, dy, ky[seg], MASK_PLACEHOLDER, reps, fold);
@@ -379,6 +395,7 @@ private:
                 uint64_t kept = 0;
                 GatherMask(cmin, pair, (uint8_t)1, false, 0, {1, pairRepeats, 8, 8}, kept);
                 GatherMask(cidx, pair, (uint8_t)2, false, 0, {1, pairRepeats, 8, 8}, kept);
+                if constexpr (!SHORT) {
                 Cast(pair, cidx.ReinterpretCast<int32_t>(), RoundMode::CAST_NONE, carry);
                 Adds(pair, pair, (float)(int32_t)seg, carry);
                 // GE keeps the incumbent on ties, and the window reduction
@@ -387,10 +404,16 @@ private:
                 Compare(keep, cmin, best, CMPMODE::GE, carry);
                 Min(best, best, cmin, carry);
                 Select(bidx, keep, bidx, pair, SELMODE::VSEL_TENSOR_TENSOR_MODE, carry);
+                }
             }
-            Sqrt(dist, best, span);
-            Cast(out, bidx, RoundMode::CAST_RINT, span);
-            Emit(batch, start + done, span, dist, out);
+            if constexpr (SHORT) {
+                Sqrt(dist, cmin, span);
+                Emit(batch, start + done, span, dist, cidx.ReinterpretCast<int32_t>());
+            } else {
+                Sqrt(dist, best, span);
+                Cast(out, bidx, RoundMode::CAST_RINT, span);
+                Emit(batch, start + done, span, dist, out);
+            }
             if (done + group < count) {
                 Hop<HardEvent::MTE3_V>();
             }
@@ -818,6 +841,7 @@ __aicore__ inline void SinglePoint(GM_ADDR p, GM_ADDR s, GM_ADDR d, GM_ADDR i)
 template <typename T, uint32_t POINTS, uint32_t SEGS>
 __aicore__ inline void FixedSmallBatch(GM_ADDR p, GM_ADDR s, GM_ADDR d, GM_ADDR i)
 {
+    if constexpr (SEGS == 2) ICachePreLoad(2);
     const uint32_t batch = GetBlockIdx();
     constexpr uint32_t n = POINTS;
     constexpr uint32_t segCount = SEGS;
@@ -885,7 +909,7 @@ __global__ __aicore__ void tree_line_min_distance(GM_ADDR tree_points, GM_ADDR l
                                                   GM_ADDR workspace, GM_ADDR tiling)
 {
     REGISTER_TILING_DEFAULT(TreeLineMinDistanceTilingData);
-    if constexpr (PATH >= 60) {
+    if constexpr (PATH >= 60 && PATH <= 73) {
         FixedSmallBatch<DT_TREE_POINTS, (PATH - 60) % 7 + 2, (PATH - 60) / 7 + 1>(tree_points, line_segments, min_distance, nearest_segment_idx);
     } else if constexpr (PATH >= 21 && PATH <= 26) {
         SinglePoint<DT_TREE_POINTS, PATH - 18>(tree_points, line_segments, min_distance, nearest_segment_idx);
@@ -900,8 +924,9 @@ __global__ __aicore__ void tree_line_min_distance(GM_ADDR tree_points, GM_ADDR l
         } else if constexpr (PATH == 4) {
             ScalarTask<DT_TREE_POINTS>(tree_points, line_segments, min_distance, nearest_segment_idx, t);
         } else {
+            if constexpr (PATH == 10) ICachePreLoad(3);
             TPipe pipe;
-            KernelTreeLineMinDistance<DT_TREE_POINTS, PATH == 5 ? 1 : (PATH == 6 || PATH == 50 ? 3 : 0), PATH == 50> op;
+            KernelTreeLineMinDistance<DT_TREE_POINTS, PATH == 5 ? 1 : (PATH == 6 || PATH == 50 || PATH == 51 || PATH == 80 ? 3 : 0), (PATH == 50 || PATH == 51), PATH == 80, PATH == 51> op;
             op.Init(tree_points, line_segments, min_distance, nearest_segment_idx, t, &pipe);
             if constexpr (PATH == 10) op.ProcessOne();
             else op.Process();
