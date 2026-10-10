@@ -20,7 +20,7 @@ constexpr uint32_t kTileCap = 512;   // points resident in one tile
 constexpr uint32_t oAx = 0, oAy = 1024, oAz = 2048;
 constexpr uint32_t oUx = 3072, oUy = 4096, oUz = 5120;
 constexpr uint32_t oKx = 6144, oKy = 7168, oKz = 8192;
-constexpr uint32_t oDx = 9216, oDy = 13312, oDz = 17408, oTt = 21504, oDsq = 25600;
+constexpr uint32_t oDx = 9224, oDy = 13328, oDz = 17432, oTt = 21536, oDsq = 25640;
 // derivation scratch, overlaid on the work area
 constexpr uint32_t oSegRaw = 9216;    // 6144 T
 constexpr uint32_t oSegFlt = 15360;   // 6144 float, fp16 input only
@@ -28,23 +28,23 @@ constexpr uint32_t oNegOne = 21504;   // 1024 float, constant -1
 constexpr uint32_t oLen = 22528;      // 1024 float
 constexpr uint32_t oInvLen = 23552;   // 1024 float
 // persistent
-constexpr uint32_t oSegOff = 29696;   // 1024 uint32, 24 * j
-constexpr uint32_t oPtRaw = 30720;    // 1536 T
-constexpr uint32_t oPtFlt = 32256;    // 1536 float
-constexpr uint32_t oPtOff = 33792;    // 512 uint32, 12 * i
-constexpr uint32_t oDiv8 = 34304;     // 512 uint32, 4 * (l / 8)
-constexpr uint32_t oPx = 34816, oPy = 34880, oPz = 34944;
-constexpr uint32_t oPxv = 35008, oPyv = 35520, oPzv = 36032;
-constexpr uint32_t oPair = 36544;     // 128 float, value/index pairs
-constexpr uint32_t oCmin = 36672, oCidx = 36736;
-constexpr uint32_t oBest = 36800, oFidx = 37312;
-constexpr uint32_t oRes = 37824;      // 1024 float
-constexpr uint32_t oRedW = 38848;     // 512 float
-constexpr uint32_t oDist = 39360;     // 512 float
-constexpr uint32_t oIdx = 39872;      // 512 int32
-constexpr uint32_t oHalf = 40384;     // 512 half
-constexpr uint32_t oMask = 40640;     // 256B compare mask
-constexpr uint32_t oArena = 40704;    // arena size in floats
+constexpr uint32_t oSegOff = 29736;   // 1024 uint32, 24 * j
+constexpr uint32_t oPtRaw = 30760;    // 1536 T
+constexpr uint32_t oPtFlt = 32296;    // 1536 float
+constexpr uint32_t oPtOff = 33832;    // 512 uint32, 12 * i
+constexpr uint32_t oDiv8 = 34344;     // 512 uint32, 4 * (l / 8)
+constexpr uint32_t oPx = 34856, oPy = 34920, oPz = 34984;
+constexpr uint32_t oPxv = 35048, oPyv = 35560, oPzv = 36072;
+constexpr uint32_t oPair = 36584;     // 128 float, value/index pairs
+constexpr uint32_t oCmin = 36712, oCidx = 36776;
+constexpr uint32_t oBest = 36840, oFidx = 37352;
+constexpr uint32_t oRes = 37864;      // 1024 float
+constexpr uint32_t oRedW = 38888;     // 512 float
+constexpr uint32_t oDist = 39400;     // 512 float
+constexpr uint32_t oIdx = 39912;      // 512 int32
+constexpr uint32_t oHalf = 40424;     // 512 half
+constexpr uint32_t oMask = 40680;     // 256B compare mask
+constexpr uint32_t oArena = 40744;    // arena size in floats
 
 __aicore__ inline uint32_t AlignLanes(uint32_t v)
 {
