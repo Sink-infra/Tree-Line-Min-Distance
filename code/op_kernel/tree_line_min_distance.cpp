@@ -62,8 +62,41 @@ __aicore__ inline void Hop()
 }
 }  // namespace
 
-template <typename T, uint32_t MODE>
+template <typename T, uint32_t MODE, bool LARGE = false>
 class KernelTreeLineMinDistance {
+    static constexpr uint32_t oDx = LARGE ? 9224 : ::oDx;
+    static constexpr uint32_t oDy = LARGE ? 15376 : ::oDy;
+    static constexpr uint32_t oDz = LARGE ? 21528 : ::oDz;
+    static constexpr uint32_t oTt = LARGE ? 27680 : ::oTt;
+    static constexpr uint32_t oDsq = LARGE ? 9224 : ::oDsq;
+    static constexpr uint32_t oSegRaw = LARGE ? 9224 : ::oSegRaw;
+    static constexpr uint32_t oSegFlt = LARGE ? 15376 : ::oSegFlt;
+    static constexpr uint32_t oNegOne = LARGE ? 21528 : ::oNegOne;
+    static constexpr uint32_t oLen = LARGE ? 22552 : ::oLen;
+    static constexpr uint32_t oInvLen = LARGE ? 23576 : ::oInvLen;
+    static constexpr uint32_t oSegOff = LARGE ? 33824 : ::oSegOff;
+    static constexpr uint32_t oPtRaw = LARGE ? 34848 : ::oPtRaw;
+    static constexpr uint32_t oPtFlt = LARGE ? 36384 : ::oPtFlt;
+    static constexpr uint32_t oPtOff = LARGE ? 37920 : ::oPtOff;
+    static constexpr uint32_t oDiv8 = LARGE ? 38432 : ::oDiv8;
+    static constexpr uint32_t oPx = LARGE ? 39200 : ::oPx;
+    static constexpr uint32_t oPy = LARGE ? 39328 : ::oPy;
+    static constexpr uint32_t oPz = LARGE ? 39456 : ::oPz;
+    static constexpr uint32_t oPxv = LARGE ? 39584 : ::oPxv;
+    static constexpr uint32_t oPyv = LARGE ? 40352 : ::oPyv;
+    static constexpr uint32_t oPzv = LARGE ? 41120 : ::oPzv;
+    static constexpr uint32_t oPair = LARGE ? 41888 : ::oPair;
+    static constexpr uint32_t oCmin = LARGE ? 42144 : ::oCmin;
+    static constexpr uint32_t oCidx = LARGE ? 42272 : ::oCidx;
+    static constexpr uint32_t oBest = LARGE ? 42400 : ::oBest;
+    static constexpr uint32_t oFidx = LARGE ? 42912 : ::oFidx;
+    static constexpr uint32_t oRes = LARGE ? 43424 : ::oRes;
+    static constexpr uint32_t oRedW = LARGE ? 44448 : ::oRedW;
+    static constexpr uint32_t oDist = LARGE ? 44960 : ::oDist;
+    static constexpr uint32_t oIdx = LARGE ? 45472 : ::oIdx;
+    static constexpr uint32_t oHalf = LARGE ? 45984 : ::oHalf;
+    static constexpr uint32_t oMask = LARGE ? 46240 : ::oMask;
+    static constexpr uint32_t oArena = LARGE ? 46304 : ::oArena;
     GlobalTensor<T> points, segments, distances;
     GlobalTensor<int32_t> indices;
     TBuf<TPosition::VECCALC> arenaBuf;
@@ -99,18 +132,6 @@ public:
         BuildScale(scratch, arena[oSegOff], 24.0f, mAligned);
         if (mode != 0) {
             BuildScale(scratch, arena[oPtOff], 12.0f, AlignLanes(tilePoints));
-        }
-        if (mode == 3) {
-            // 4 * (l / 8): one 32B block of the expanded point coordinate per
-            // point, so a blocked call can re-read it with a zero block stride.
-            const uint32_t span = kLanes * ((8u * group + kLanes - 1) / kLanes);
-            CreateVecIndex(scratch, 0.0f, span);
-            Muls(scratch, scratch, 0.125f, span);
-            LocalTensor<int32_t> whole = arena[oDiv8].ReinterpretCast<int32_t>();
-            Cast(whole, scratch, RoundMode::CAST_FLOOR, span);
-            Cast(scratch, whole, RoundMode::CAST_NONE, span);
-            Muls(scratch, scratch, 4.0f, span);
-            Cast(whole, scratch, RoundMode::CAST_RINT, span);
         }
         Duplicate(arena[oNegOne], -1.0f, mAligned);
     }
@@ -306,7 +327,6 @@ private:
         LocalTensor<float> pair = arena[oPair], cmin = arena[oCmin], cidx = arena[oCidx];
         LocalTensor<float> best = arena[oBest], bidx = arena[oFidx];
         LocalTensor<uint32_t> ptOff = arena[oPtOff].ReinterpretCast<uint32_t>();
-        LocalTensor<uint32_t> div8 = arena[oDiv8].ReinterpretCast<uint32_t>();
         LocalTensor<uint8_t> keep = arena[oMask].ReinterpretCast<uint8_t>();
         LocalTensor<float> dist = arena[oDist];
         LocalTensor<int32_t> out = arena[oIdx].ReinterpretCast<int32_t>();
@@ -324,15 +344,17 @@ private:
                 span = group;
             }
             const uint8_t reps = (uint8_t)span;
+            const uint32_t carry = LARGE ? AlignLanes(span) : kLanes;
+            const uint16_t pairRepeats = LARGE ? (uint16_t)(AlignLanes(2 * span) / kLanes) : 2;
             const uint32_t base = 12u * done;
             Gather(px, src, ptOff, base, span);
             Gather(py, src, ptOff, base + 4u, span);
             Gather(pz, src, ptOff, base + 8u, span);
-            Gather(pxv, px, div8, 0u, 8u * span);
-            Gather(pyv, py, div8, 0u, 8u * span);
-            Gather(pzv, pz, div8, 0u, 8u * span);
-            Duplicate(best, kGuardDist, kLanes);
-            Duplicate(bidx, 0.0f, kLanes);
+            Brcb(pxv, px, (uint8_t)((span + 7) / 8), {1, 8});
+            Brcb(pyv, py, (uint8_t)((span + 7) / 8), {1, 8});
+            Brcb(pzv, pz, (uint8_t)((span + 7) / 8), {1, 8});
+            Duplicate(best, kGuardDist, carry);
+            Duplicate(bidx, 0.0f, carry);
 
             for (uint32_t r = 0; r < mRepeat; ++r) {
                 const uint32_t seg = r * kLanes;
@@ -355,16 +377,16 @@ private:
                 // Each repeat holds one point against this segment window.
                 WholeReduceMin(pair, dsq, (int32_t)kLanes, (int32_t)reps, 1, 1, 8);
                 uint64_t kept = 0;
-                GatherMask(cmin, pair, (uint8_t)1, false, 0, {1, 2, 8, 8}, kept);
-                GatherMask(cidx, pair, (uint8_t)2, false, 0, {1, 2, 8, 8}, kept);
-                Cast(pair, cidx.ReinterpretCast<int32_t>(), RoundMode::CAST_NONE, kLanes);
-                Adds(pair, pair, (float)(int32_t)seg, kLanes);
+                GatherMask(cmin, pair, (uint8_t)1, false, 0, {1, pairRepeats, 8, 8}, kept);
+                GatherMask(cidx, pair, (uint8_t)2, false, 0, {1, pairRepeats, 8, 8}, kept);
+                Cast(pair, cidx.ReinterpretCast<int32_t>(), RoundMode::CAST_NONE, carry);
+                Adds(pair, pair, (float)(int32_t)seg, carry);
                 // GE keeps the incumbent on ties, and the window reduction
                 // already returns its own first minimum, so the smallest
                 // segment index always wins.
-                Compare(keep, cmin, best, CMPMODE::GE, kLanes);
-                Min(best, best, cmin, kLanes);
-                Select(bidx, keep, bidx, pair, SELMODE::VSEL_TENSOR_TENSOR_MODE, kLanes);
+                Compare(keep, cmin, best, CMPMODE::GE, carry);
+                Min(best, best, cmin, carry);
+                Select(bidx, keep, bidx, pair, SELMODE::VSEL_TENSOR_TENSOR_MODE, carry);
             }
             Sqrt(dist, best, span);
             Cast(out, bidx, RoundMode::CAST_RINT, span);
@@ -799,7 +821,7 @@ __global__ __aicore__ void tree_line_min_distance(GM_ADDR tree_points, GM_ADDR l
                                                   GM_ADDR workspace, GM_ADDR tiling)
 {
     REGISTER_TILING_DEFAULT(TreeLineMinDistanceTilingData);
-    if constexpr (PATH >= 21) {
+    if constexpr (PATH >= 21 && PATH <= 26) {
         SinglePoint<DT_TREE_POINTS, PATH - 18>(tree_points, line_segments, min_distance, nearest_segment_idx);
     } else if constexpr (PATH == 2) {
         SinglePoint<DT_TREE_POINTS, 1>(tree_points, line_segments, min_distance, nearest_segment_idx);
@@ -813,7 +835,7 @@ __global__ __aicore__ void tree_line_min_distance(GM_ADDR tree_points, GM_ADDR l
             ScalarTask<DT_TREE_POINTS>(tree_points, line_segments, min_distance, nearest_segment_idx, t);
         } else {
             TPipe pipe;
-            KernelTreeLineMinDistance<DT_TREE_POINTS, PATH == 5 ? 1 : (PATH == 6 ? 3 : 0)> op;
+            KernelTreeLineMinDistance<DT_TREE_POINTS, PATH == 5 ? 1 : (PATH == 6 || PATH == 50 ? 3 : 0), PATH == 50> op;
             op.Init(tree_points, line_segments, min_distance, nearest_segment_idx, t, &pipe);
             if constexpr (PATH == 10) op.ProcessOne();
             else op.Process();
