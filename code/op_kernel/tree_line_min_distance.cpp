@@ -115,6 +115,16 @@ public:
         Duplicate(arena[oNegOne], -1.0f, mAligned);
     }
 
+    __aicore__ inline void ProcessOne()
+    {
+        LoadSegments(0);
+        LoadPoints(0, 0, 1);
+        Hop<HardEvent::MTE2_V>();
+        DeriveSegments();
+        Hop<HardEvent::MTE2_S>();
+        SegmentLanes(0, 0, 1);
+    }
+
     __aicore__ inline void Process()
     {
         const uint32_t tasks = b * chunks;
@@ -803,7 +813,8 @@ __global__ __aicore__ void tree_line_min_distance(GM_ADDR tree_points, GM_ADDR l
             TPipe pipe;
             KernelTreeLineMinDistance<DT_TREE_POINTS, PATH == 5 ? 1 : (PATH == 6 ? 3 : 0)> op;
             op.Init(tree_points, line_segments, min_distance, nearest_segment_idx, t, &pipe);
-            op.Process();
+            if constexpr (PATH == 10) op.ProcessOne();
+            else op.Process();
         }
     }
 }
