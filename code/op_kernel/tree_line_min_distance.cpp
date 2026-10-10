@@ -62,13 +62,14 @@ __aicore__ inline void Hop()
 }
 }  // namespace
 
-template <typename T>
+template <typename T, uint32_t MODE>
 class KernelTreeLineMinDistance {
     GlobalTensor<T> points, segments, distances;
     GlobalTensor<int32_t> indices;
     TBuf<TPosition::VECCALC> arenaBuf;
     LocalTensor<float> arena;
-    uint32_t b, n, m, mode, chunks, chunkPoints, tilePoints, group;
+    static constexpr uint32_t mode = MODE;
+    uint32_t b, n, m, chunks, chunkPoints, tilePoints, group;
     uint32_t mAligned, mRepeat;
 
 public:
@@ -78,7 +79,6 @@ public:
         b = t.b;
         n = t.n;
         m = t.m;
-        mode = t.mode;
         chunks = t.chunks;
         chunkPoints = t.chunkPoints;
         tilePoints = t.tilePoints;
@@ -801,7 +801,7 @@ __global__ __aicore__ void tree_line_min_distance(GM_ADDR tree_points, GM_ADDR l
             ScalarTask<DT_TREE_POINTS>(tree_points, line_segments, min_distance, nearest_segment_idx, t);
         } else {
             TPipe pipe;
-            KernelTreeLineMinDistance<DT_TREE_POINTS> op;
+            KernelTreeLineMinDistance<DT_TREE_POINTS, PATH == 5 ? 1 : (PATH == 6 ? 3 : 0)> op;
             op.Init(tree_points, line_segments, min_distance, nearest_segment_idx, t, &pipe);
             op.Process();
         }
