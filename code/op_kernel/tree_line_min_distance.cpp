@@ -818,6 +818,7 @@ __aicore__ inline void SinglePoint(GM_ADDR p, GM_ADDR s, GM_ADDR d, GM_ADDR i)
 template <typename T, uint32_t POINTS, uint32_t SEGS>
 __aicore__ inline void FixedSmallBatch(GM_ADDR p, GM_ADDR s, GM_ADDR d, GM_ADDR i)
 {
+    ICachePreLoad(2);
     const uint32_t batch = GetBlockIdx();
     constexpr uint32_t n = POINTS;
     constexpr uint32_t segCount = SEGS;
