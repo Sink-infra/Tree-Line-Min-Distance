@@ -115,6 +115,10 @@ static ge::graphStatus TilingFunc(gert::TilingContext *context) {
     if (mode == 2) PATH = m > 2 ? 1 : (b * n == 1 ? m + 1 : 4);
     if (b * n == 1 && mode == 0) PATH = 10;
     if (b * n == 1 && m > 2 && m <= 8) PATH = m + 18;
+    if (mode == 3 && chunkPoints >= 96 && m >= 128) {
+        t->group = 96;
+        PATH = 50;
+    }
     ASCENDC_TPL_SEL_PARAM(context,DT_TREE_POINTS,PATH);
     context->GetWorkspaceSizes(1)[0]=0;
     return ge::GRAPH_SUCCESS;
