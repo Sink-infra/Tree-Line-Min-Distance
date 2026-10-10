@@ -119,6 +119,7 @@ static ge::graphStatus TilingFunc(gert::TilingContext *context) {
         t->group = 96;
         PATH = 50;
     }
+    if (n > 1 && n <= 8 && m <= 2) { PATH = 60 + (m - 1) * 7 + n - 2; context->SetBlockDim(b); }
     ASCENDC_TPL_SEL_PARAM(context,DT_TREE_POINTS,PATH);
     context->GetWorkspaceSizes(1)[0]=0;
     return ge::GRAPH_SUCCESS;
