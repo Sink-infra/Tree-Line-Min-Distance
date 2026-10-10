@@ -642,19 +642,19 @@ __aicore__ inline void ScalarTask(GM_ADDR p, GM_ADDR s, GM_ADDR d, GM_ADDR i,
     }
 }
 
-template <typename DT_TREE_POINTS>
+template <typename DT_TREE_POINTS, bool SCALAR>
 __global__ __aicore__ void tree_line_min_distance(GM_ADDR tree_points, GM_ADDR line_segments,
                                                   GM_ADDR min_distance, GM_ADDR nearest_segment_idx,
                                                   GM_ADDR workspace, GM_ADDR tiling)
 {
     REGISTER_TILING_DEFAULT(TreeLineMinDistanceTilingData);
     GET_TILING_DATA_WITH_STRUCT(TreeLineMinDistanceTilingData, t, tiling);
-    if (t.mode == 2) {
+    if constexpr (SCALAR) {
         ScalarTask<DT_TREE_POINTS>(tree_points, line_segments, min_distance, nearest_segment_idx, t);
-        return;
+    } else {
+        TPipe pipe;
+        KernelTreeLineMinDistance<DT_TREE_POINTS> op;
+        op.Init(tree_points, line_segments, min_distance, nearest_segment_idx, t, &pipe);
+        op.Process();
     }
-    TPipe pipe;
-    KernelTreeLineMinDistance<DT_TREE_POINTS> op;
-    op.Init(tree_points, line_segments, min_distance, nearest_segment_idx, t, &pipe);
-    op.Process();
 }

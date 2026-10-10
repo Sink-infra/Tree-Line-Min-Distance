@@ -111,7 +111,8 @@ static ge::graphStatus TilingFunc(gert::TilingContext *context) {
     const uint32_t tasks=b*chunks;
     context->SetBlockDim(tasks<cores?tasks:cores);
     uint32_t DT_TREE_POINTS=static_cast<uint32_t>(dtype);
-    ASCENDC_TPL_SEL_PARAM(context,DT_TREE_POINTS);
+    const uint32_t SCALAR = mode == 2 && m <= 2;
+    ASCENDC_TPL_SEL_PARAM(context,DT_TREE_POINTS,SCALAR);
     context->GetWorkspaceSizes(1)[0]=0;
     return ge::GRAPH_SUCCESS;
 }
