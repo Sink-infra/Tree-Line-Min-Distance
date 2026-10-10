@@ -62,7 +62,7 @@ __aicore__ inline void Hop()
 }
 }  // namespace
 
-template <typename T, uint32_t MODE, bool LARGE = false>
+template <typename T, uint32_t MODE, bool LARGE = false, bool SHORT = false>
 class KernelTreeLineMinDistance {
     static constexpr uint32_t oDx = LARGE ? 9224 : ::oDx;
     static constexpr uint32_t oDy = LARGE ? 15376 : ::oDy;
@@ -116,7 +116,7 @@ public:
         chunkPoints = t.chunkPoints;
         tilePoints = t.tilePoints;
         group = t.group;
-        mAligned = AlignLanes(m);
+        mAligned = SHORT ? kLanes : AlignLanes(m);
         mRepeat = mAligned / kLanes;
         points.SetGlobalBuffer((__gm__ T *)p);
         segments.SetGlobalBuffer((__gm__ T *)s);
@@ -353,10 +353,12 @@ private:
             Brcb(pxv, px, (uint8_t)((span + 7) / 8), {1, 8});
             Brcb(pyv, py, (uint8_t)((span + 7) / 8), {1, 8});
             Brcb(pzv, pz, (uint8_t)((span + 7) / 8), {1, 8});
-            Duplicate(best, kGuardDist, carry);
-            Duplicate(bidx, 0.0f, carry);
+            if constexpr (!SHORT) {
+                Duplicate(best, kGuardDist, carry);
+                Duplicate(bidx, 0.0f, carry);
+            }
 
-            for (uint32_t r = 0; r < mRepeat; ++r) {
+            for (uint32_t r = 0; r < (SHORT ? 1u : mRepeat); ++r) {
                 const uint32_t seg = r * kLanes;
                 SetVectorMask<float>((int32_t)kLanes);
                 Sub<float, false>(dx, ax[seg], pxv, MASK_PLACEHOLDER, reps, spread);
@@ -379,6 +381,7 @@ private:
                 uint64_t kept = 0;
                 GatherMask(cmin, pair, (uint8_t)1, false, 0, {1, pairRepeats, 8, 8}, kept);
                 GatherMask(cidx, pair, (uint8_t)2, false, 0, {1, pairRepeats, 8, 8}, kept);
+                if constexpr (!SHORT) {
                 Cast(pair, cidx.ReinterpretCast<int32_t>(), RoundMode::CAST_NONE, carry);
                 Adds(pair, pair, (float)(int32_t)seg, carry);
                 // GE keeps the incumbent on ties, and the window reduction
@@ -387,10 +390,16 @@ private:
                 Compare(keep, cmin, best, CMPMODE::GE, carry);
                 Min(best, best, cmin, carry);
                 Select(bidx, keep, bidx, pair, SELMODE::VSEL_TENSOR_TENSOR_MODE, carry);
+                }
             }
-            Sqrt(dist, best, span);
-            Cast(out, bidx, RoundMode::CAST_RINT, span);
-            Emit(batch, start + done, span, dist, out);
+            if constexpr (SHORT) {
+                Sqrt(dist, cmin, span);
+                Emit(batch, start + done, span, dist, cidx.ReinterpretCast<int32_t>());
+            } else {
+                Sqrt(dist, best, span);
+                Cast(out, bidx, RoundMode::CAST_RINT, span);
+                Emit(batch, start + done, span, dist, out);
+            }
             if (done + group < count) {
                 Hop<HardEvent::MTE3_V>();
             }
@@ -818,7 +827,7 @@ __aicore__ inline void SinglePoint(GM_ADDR p, GM_ADDR s, GM_ADDR d, GM_ADDR i)
 template <typename T, uint32_t POINTS, uint32_t SEGS>
 __aicore__ inline void FixedSmallBatch(GM_ADDR p, GM_ADDR s, GM_ADDR d, GM_ADDR i)
 {
-    ICachePreLoad(2);
+    if constexpr (SEGS == 2) ICachePreLoad(2);
     const uint32_t batch = GetBlockIdx();
     constexpr uint32_t n = POINTS;
     constexpr uint32_t segCount = SEGS;
@@ -886,7 +895,7 @@ __global__ __aicore__ void tree_line_min_distance(GM_ADDR tree_points, GM_ADDR l
                                                   GM_ADDR workspace, GM_ADDR tiling)
 {
     REGISTER_TILING_DEFAULT(TreeLineMinDistanceTilingData);
-    if constexpr (PATH >= 60) {
+    if constexpr (PATH >= 60 && PATH <= 73) {
         FixedSmallBatch<DT_TREE_POINTS, (PATH - 60) % 7 + 2, (PATH - 60) / 7 + 1>(tree_points, line_segments, min_distance, nearest_segment_idx);
     } else if constexpr (PATH >= 21 && PATH <= 26) {
         SinglePoint<DT_TREE_POINTS, PATH - 18>(tree_points, line_segments, min_distance, nearest_segment_idx);
@@ -901,8 +910,9 @@ __global__ __aicore__ void tree_line_min_distance(GM_ADDR tree_points, GM_ADDR l
         } else if constexpr (PATH == 4) {
             ScalarTask<DT_TREE_POINTS>(tree_points, line_segments, min_distance, nearest_segment_idx, t);
         } else {
+            if constexpr (PATH == 10) ICachePreLoad(3);
             TPipe pipe;
-            KernelTreeLineMinDistance<DT_TREE_POINTS, PATH == 5 ? 1 : (PATH == 6 || PATH == 50 ? 3 : 0), PATH == 50> op;
+            KernelTreeLineMinDistance<DT_TREE_POINTS, PATH == 5 ? 1 : (PATH == 6 || PATH == 50 || PATH == 80 ? 3 : 0), PATH == 50, PATH == 80> op;
             op.Init(tree_points, line_segments, min_distance, nearest_segment_idx, t, &pipe);
             if constexpr (PATH == 10) op.ProcessOne();
             else op.Process();

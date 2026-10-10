@@ -103,6 +103,9 @@ static ge::graphStatus TilingFunc(gert::TilingContext *context) {
             chunks=split; chunkPoints=owned; tilePoints=tile; group=pack; mode=pick;
         }
     }
+    if (n <= 8 && m >= 9 && m <= 64 && b * n <= cores) {
+        mode = 3; chunks = 1; chunkPoints = n; tilePoints = n; group = n;
+    }
     t->mode=mode;
     t->group=group;
 
@@ -120,6 +123,7 @@ static ge::graphStatus TilingFunc(gert::TilingContext *context) {
         PATH = 50;
     }
     if (n > 1 && n <= 8 && m <= 2) { PATH = 60 + (m - 1) * 7 + n - 2; context->SetBlockDim(b); }
+    if (n <= 8 && m >= 9 && m <= 64 && b * n <= cores) PATH = 80;
     ASCENDC_TPL_SEL_PARAM(context,DT_TREE_POINTS,PATH);
     context->GetWorkspaceSizes(1)[0]=0;
     return ge::GRAPH_SUCCESS;
