@@ -594,9 +594,8 @@ private:
     }
 };
 
-template <typename T, uint32_t MODE, bool LARGE = false, bool SHORT = false, bool WIDE = false, bool SPLIT = false, bool BANK = false, bool STRIDED = false, bool AXIS = false, bool CACHED = false, bool PSPLIT = false>
+template <typename T, uint32_t MODE, bool LARGE = false, bool SHORT = false, bool WIDE = false, bool SPLIT = false, bool BANK = false, bool STRIDED = false, bool AXIS = false>
 class KernelPointGroups {
-    static constexpr bool cachedCoords = CACHED && sizeof(T) == 4;
     static constexpr uint32_t oDx = STRIDED ? 9216 : WIDE ? 9224 : LARGE ? 9224 : ::oDx;
     static constexpr uint32_t oDy = STRIDED ? 17472 : WIDE ? (BANK ? 17480 : 17424) : LARGE ? 15376 : ::oDy;
     static constexpr uint32_t oDz = STRIDED ? 25664 : WIDE ? (BANK ? 25672 : 25624) : LARGE ? 21528 : ::oDz;
@@ -610,26 +609,26 @@ class KernelPointGroups {
     static constexpr uint32_t oSegOff = STRIDED ? 42048 : WIDE ? (BANK ? 42056 : 42016) : LARGE ? 33824 : ::oSegOff;
     static constexpr uint32_t oPtRaw = STRIDED ? 43072 : WIDE ? (BANK ? 43080 : 43040) : LARGE ? 34848 : ::oPtRaw;
     static constexpr uint32_t oPtFlt = STRIDED ? 43456 : WIDE ? (BANK ? 43464 : 43424) : LARGE ? 36384 : ::oPtFlt;
-    static constexpr uint32_t oPtOff = cachedCoords ? 43424 : STRIDED ? 43840 : WIDE ? (BANK ? 43848 : 43808) : LARGE ? 37920 : ::oPtOff;
-    static constexpr uint32_t oDiv8 = cachedCoords ? 43552 : STRIDED ? 43968 : WIDE ? (BANK ? 43976 : 43936) : LARGE ? 38432 : ::oDiv8;
-    static constexpr uint32_t oPx = cachedCoords ? 43552 : STRIDED ? 43968 : WIDE ? (BANK ? 43976 : 43936) : LARGE ? 39200 : ::oPx;
-    static constexpr uint32_t oPy = cachedCoords ? 43680 : STRIDED ? 44096 : WIDE ? (BANK ? 44104 : 44064) : LARGE ? 39328 : ::oPy;
-    static constexpr uint32_t oPz = cachedCoords ? 43808 : STRIDED ? 44224 : WIDE ? (BANK ? 44232 : 44192) : LARGE ? 39456 : ::oPz;
-    static constexpr uint32_t oPxv = cachedCoords ? 42016 : STRIDED ? 44352 : WIDE ? (BANK ? 44360 : 44320) : LARGE ? 39584 : ::oPxv;
-    static constexpr uint32_t oPyv = cachedCoords ? 43936 : STRIDED ? 44864 : WIDE ? (BANK ? 44360 : 44320) : LARGE ? 40352 : ::oPyv;
-    static constexpr uint32_t oPzv = cachedCoords ? 44960 : STRIDED ? 45376 : WIDE ? (BANK ? 44360 : 44320) : LARGE ? 41120 : ::oPzv;
-    static constexpr uint32_t oPair = cachedCoords ? 45984 : STRIDED ? 45888 : WIDE ? (BANK ? 45384 : 45344) : LARGE ? 41888 : ::oPair;
-    static constexpr uint32_t oCmin = cachedCoords ? 46240 : STRIDED ? 46144 : WIDE ? (BANK ? 45640 : 45600) : LARGE ? 42144 : ::oCmin;
-    static constexpr uint32_t oCidx = cachedCoords ? 46368 : STRIDED ? 46272 : WIDE ? (BANK ? 45768 : 45728) : LARGE ? 42272 : ::oCidx;
-    static constexpr uint32_t oBest = cachedCoords ? 46496 : STRIDED ? 46400 : WIDE ? (BANK ? 45896 : 45856) : LARGE ? 42400 : ::oBest;
-    static constexpr uint32_t oFidx = cachedCoords ? 46624 : STRIDED ? 46528 : WIDE ? (BANK ? 46024 : 45984) : LARGE ? 42912 : ::oFidx;
-    static constexpr uint32_t oRes = cachedCoords ? 46752 : STRIDED ? 46656 : WIDE ? (BANK ? 46152 : 46112) : LARGE ? 43424 : ::oRes;
-    static constexpr uint32_t oRedW = cachedCoords ? 46752 : STRIDED ? 46656 : WIDE ? (BANK ? 46152 : 46112) : LARGE ? 44448 : ::oRedW;
-    static constexpr uint32_t oDist = cachedCoords ? 46752 : STRIDED ? 46656 : WIDE ? (BANK ? 46152 : 46112) : LARGE ? 44960 : ::oDist;
-    static constexpr uint32_t oIdx = cachedCoords ? 46880 : STRIDED ? 46784 : WIDE ? (BANK ? 46280 : 46240) : LARGE ? 45472 : ::oIdx;
-    static constexpr uint32_t oHalf = cachedCoords ? 46752 : STRIDED ? 46912 : WIDE ? (BANK ? 46408 : 46368) : LARGE ? 45984 : ::oHalf;
-    static constexpr uint32_t oMask = cachedCoords ? 47008 : STRIDED ? 46976 : WIDE ? (BANK ? 46472 : 46432) : LARGE ? 46240 : ::oMask;
-    static constexpr uint32_t oArena = cachedCoords ? 47072 : STRIDED ? 47040 : WIDE ? (BANK ? 46536 : 46496) : LARGE ? 46304 : ::oArena;
+    static constexpr uint32_t oPtOff = STRIDED ? 43840 : WIDE ? (BANK ? 43848 : 43808) : LARGE ? 37920 : ::oPtOff;
+    static constexpr uint32_t oDiv8 = STRIDED ? 43968 : WIDE ? (BANK ? 43976 : 43936) : LARGE ? 38432 : ::oDiv8;
+    static constexpr uint32_t oPx = STRIDED ? 43968 : WIDE ? (BANK ? 43976 : 43936) : LARGE ? 39200 : ::oPx;
+    static constexpr uint32_t oPy = STRIDED ? 44096 : WIDE ? (BANK ? 44104 : 44064) : LARGE ? 39328 : ::oPy;
+    static constexpr uint32_t oPz = STRIDED ? 44224 : WIDE ? (BANK ? 44232 : 44192) : LARGE ? 39456 : ::oPz;
+    static constexpr uint32_t oPxv = STRIDED ? 44352 : WIDE ? (BANK ? 44360 : 44320) : LARGE ? 39584 : ::oPxv;
+    static constexpr uint32_t oPyv = STRIDED ? 44864 : WIDE ? (BANK ? 44360 : 44320) : LARGE ? 40352 : ::oPyv;
+    static constexpr uint32_t oPzv = STRIDED ? 45376 : WIDE ? (BANK ? 44360 : 44320) : LARGE ? 41120 : ::oPzv;
+    static constexpr uint32_t oPair = STRIDED ? 45888 : WIDE ? (BANK ? 45384 : 45344) : LARGE ? 41888 : ::oPair;
+    static constexpr uint32_t oCmin = STRIDED ? 46144 : WIDE ? (BANK ? 45640 : 45600) : LARGE ? 42144 : ::oCmin;
+    static constexpr uint32_t oCidx = STRIDED ? 46272 : WIDE ? (BANK ? 45768 : 45728) : LARGE ? 42272 : ::oCidx;
+    static constexpr uint32_t oBest = STRIDED ? 46400 : WIDE ? (BANK ? 45896 : 45856) : LARGE ? 42400 : ::oBest;
+    static constexpr uint32_t oFidx = STRIDED ? 46528 : WIDE ? (BANK ? 46024 : 45984) : LARGE ? 42912 : ::oFidx;
+    static constexpr uint32_t oRes = STRIDED ? 46656 : WIDE ? (BANK ? 46152 : 46112) : LARGE ? 43424 : ::oRes;
+    static constexpr uint32_t oRedW = STRIDED ? 46656 : WIDE ? (BANK ? 46152 : 46112) : LARGE ? 44448 : ::oRedW;
+    static constexpr uint32_t oDist = STRIDED ? 46656 : WIDE ? (BANK ? 46152 : 46112) : LARGE ? 44960 : ::oDist;
+    static constexpr uint32_t oIdx = STRIDED ? 46784 : WIDE ? (BANK ? 46280 : 46240) : LARGE ? 45472 : ::oIdx;
+    static constexpr uint32_t oHalf = STRIDED ? 46912 : WIDE ? (BANK ? 46408 : 46368) : LARGE ? 45984 : ::oHalf;
+    static constexpr uint32_t oMask = STRIDED ? 46976 : WIDE ? (BANK ? 46472 : 46432) : LARGE ? 46240 : ::oMask;
+    static constexpr uint32_t oArena = STRIDED ? 47040 : WIDE ? (BANK ? 46536 : 46496) : LARGE ? 46304 : ::oArena;
     GlobalTensor<T> points, segments, distances;
     GlobalTensor<int32_t> indices;
     TBuf<TPosition::VECCALC> arenaBuf;
@@ -707,7 +706,6 @@ public:
             LoadPoints(batch, begin, head);
             if (fresh) {
                 cached = batch;
-                if constexpr (cachedCoords) BuildScale(arena[oLen], arena[oSegOff], 24.0f, mAligned);
                 if constexpr (AXIS) {
                     Hop<HardEvent::MTE2_S>();
                     orderedAxis = DetectOrderedAxis();
@@ -776,60 +774,21 @@ private:
     {
         LocalTensor<T> raw = arena[oSegRaw].template ReinterpretCast<T>();
         const float x0 = (float)raw.GetValue(0), x1 = (float)raw.GetValue(3);
-        const float z0 = (float)raw.GetValue(2), y0 = (float)raw.GetValue(1);
-        if ((float)raw.GetValue(4) != y0 || (float)raw.GetValue(5) != z0) return false;
-        if (m > 1 && ((float)raw.GetValue(6) != x0 || (float)raw.GetValue(9) != x1 ||
-            (float)raw.GetValue(8) != z0 || (float)raw.GetValue(11) != z0 ||
-            (float)raw.GetValue(7) != (float)raw.GetValue(10) ||
-            (float)raw.GetValue(7) < y0)) return false;
-        const float lastY = (float)raw.GetValue(6 * (m - 1) + 1);
-        Hop<HardEvent::MTE2_V>();
-        LocalTensor<float> src = arena[oSegRaw];
-        if constexpr (sizeof(T) == 2) {
-            src = arena[oSegFlt];
-            Cast(src, raw, RoundMode::CAST_NONE, m * 6);
+        const float z0 = (float)raw.GetValue(2);
+        float previous = (float)raw.GetValue(1);
+        for (uint32_t j = 0; j < m; ++j) {
+            const uint32_t k = 6 * j;
+            const float y = (float)raw.GetValue(k + 1);
+            if ((float)raw.GetValue(k) != x0 || (float)raw.GetValue(k + 3) != x1 ||
+                (float)raw.GetValue(k + 2) != z0 || (float)raw.GetValue(k + 5) != z0 ||
+                (float)raw.GetValue(k + 4) != y || y < previous) return false;
+            previous = y;
         }
-        LocalTensor<float> ax = arena[oAx], ay = arena[oAy], az = arena[oAz];
-        LocalTensor<float> cx = arena[oUx], cy = arena[oUy], cz = arena[oUz];
-        LocalTensor<uint32_t> offsets = arena[oSegOff].ReinterpretCast<uint32_t>();
-        Duplicate(ax, x0, mAligned); Duplicate(cx, x1, mAligned);
-        Duplicate(az, z0, mAligned); Duplicate(cz, z0, mAligned);
-        Duplicate(ay, lastY, mAligned); Duplicate(cy, lastY, mAligned);
-        Gather(ax, src, offsets, 0u, m);
-        Gather(ay, src, offsets, 4u, m);
-        Gather(az, src, offsets, 8u, m);
-        Gather(cx, src, offsets, 12u, m);
-        Gather(cy, src, offsets, 16u, m);
-        Gather(cz, src, offsets, 20u, m);
-        PipeBarrier<PIPE_V>();
-        LocalTensor<float> flags = arena[oInvLen], neighbor = arena[oKz];
-        LocalTensor<float> scratch = arena[oKx];
-        LocalTensor<int32_t> nextOffsets = arena[oKy].ReinterpretCast<int32_t>();
-        LocalTensor<uint8_t> mask = arena[oMask].ReinterpretCast<uint8_t>();
-        Duplicate(flags, 0.0f, mAligned);
-        CompareScalar(mask, ax, x0, CMPMODE::EQ, mAligned);
-        Select(flags, mask, flags, 1.0f, SELMODE::VSEL_TENSOR_SCALAR_MODE, mAligned);
-        CompareScalar(mask, cx, x1, CMPMODE::EQ, mAligned);
-        Select(flags, mask, flags, 1.0f, SELMODE::VSEL_TENSOR_SCALAR_MODE, mAligned);
-        CompareScalar(mask, az, z0, CMPMODE::EQ, mAligned);
-        Select(flags, mask, flags, 1.0f, SELMODE::VSEL_TENSOR_SCALAR_MODE, mAligned);
-        CompareScalar(mask, cz, z0, CMPMODE::EQ, mAligned);
-        Select(flags, mask, flags, 1.0f, SELMODE::VSEL_TENSOR_SCALAR_MODE, mAligned);
-        Compare(mask, ay, cy, CMPMODE::EQ, mAligned);
-        Select(flags, mask, flags, 1.0f, SELMODE::VSEL_TENSOR_SCALAR_MODE, mAligned);
-        CreateVecIndex(scratch, 1.0f, mAligned);
-        Mins(scratch, scratch, (float)((int32_t)m - 1), mAligned);
-        Muls(scratch, scratch, 4.0f, mAligned);
-        Cast(nextOffsets, scratch, RoundMode::CAST_RINT, mAligned);
-        Gather(neighbor, ay, nextOffsets.ReinterpretCast<uint32_t>(), 0u, mAligned);
-        Compare(mask, neighbor, ay, CMPMODE::GE, mAligned);
-        Select(flags, mask, flags, 1.0f, SELMODE::VSEL_TENSOR_SCALAR_MODE, mAligned);
-        ReduceMax(arena[oPair], flags, arena[oDy], mAligned, false);
-        Hop<HardEvent::V_S>();
-        if (arena[oPair].GetValue(0) != 0.0f) return false;
         axisLow = x0 < x1 ? x0 : x1;
         axisHigh = x0 < x1 ? x1 : x0;
         axisZ = z0;
+        LocalTensor<float> y = arena[oAy];
+        for (uint32_t j = 0; j < m; ++j) y.SetValue(j, (float)raw.GetValue(6 * j + 1));
         return true;
     }
 
@@ -1042,7 +1001,7 @@ private:
             Gather(px, src, ptOff, base, span);
             Gather(py, src, ptOff, base + 4u, span);
             Gather(pz, src, ptOff, base + 8u, span);
-            if constexpr (!WIDE || STRIDED || cachedCoords) {
+            if constexpr (!WIDE || STRIDED) {
             Brcb(pxv, px, (uint8_t)((span + 7) / 8), {1, 8});
             Brcb(pyv, py, (uint8_t)((span + 7) / 8), {1, 8});
             Brcb(pzv, pz, (uint8_t)((span + 7) / 8), {1, 8});
@@ -1055,35 +1014,26 @@ private:
             for (uint32_t r = 0; r < (SHORT ? 1u : mRepeat); ++r) {
                 const uint32_t seg = r * kLanes;
                 SetVectorMask<float>((int32_t)kLanes);
-                if constexpr (WIDE && !STRIDED && !cachedCoords) {
+                if constexpr (WIDE && !STRIDED) {
                     PipeBarrier<PIPE_V>();
                     Brcb(pxv, px, (uint8_t)((span + 7) / 8), {1, 8});
                 }
                 Sub<float, false>(dx, ax[seg], pxv, MASK_PLACEHOLDER, reps, spread);
-                if constexpr (WIDE && !STRIDED && !cachedCoords) {
+                if constexpr (WIDE && !STRIDED) {
                     PipeBarrier<PIPE_V>();
                     Brcb(pxv, py, (uint8_t)((span + 7) / 8), {1, 8});
                 }
                 Sub<float, false>(dy, ay[seg], pyv, MASK_PLACEHOLDER, reps, spread);
-                if constexpr (WIDE && !STRIDED && !cachedCoords) {
+                if constexpr (WIDE && !STRIDED) {
                     PipeBarrier<PIPE_V>();
                     Brcb(pxv, pz, (uint8_t)((span + 7) / 8), {1, 8});
                 }
                 Sub<float, false>(dz, az[seg], pzv, MASK_PLACEHOLDER, reps, spread);
                 Mul<float, false>(tt, dx, kx[seg], MASK_PLACEHOLDER, reps, fold);
-                if constexpr (cachedCoords && PSPLIT) {
-                    Mul<float, false>(dx, dy, ky[seg], MASK_PLACEHOLDER, reps, fold);
-                    Add<float, false>(tt, tt, dx, MASK_PLACEHOLDER, reps, plain);
-                    Mul<float, false>(dx, dz, kz[seg], MASK_PLACEHOLDER, reps, fold);
-                    Add<float, false>(tt, tt, dx, MASK_PLACEHOLDER, reps, plain);
-                } else {
-                    MulAddDst<float, float, false>(tt, dy, ky[seg], MASK_PLACEHOLDER, reps, fold);
-                    MulAddDst<float, float, false>(tt, dz, kz[seg], MASK_PLACEHOLDER, reps, fold);
-                }
+                MulAddDst<float, float, false>(tt, dy, ky[seg], MASK_PLACEHOLDER, reps, fold);
+                MulAddDst<float, float, false>(tt, dz, kz[seg], MASK_PLACEHOLDER, reps, fold);
                 Maxs<float, false>(tt, tt, 0.0f, MASK_PLACEHOLDER, reps, clamp);
                 Mins<float, false>(tt, tt, 1.0f, MASK_PLACEHOLDER, reps, clamp);
-                if constexpr (cachedCoords && PSPLIT)
-                    Sub<float, false>(dx, ax[seg], pxv, MASK_PLACEHOLDER, reps, spread);
                 MulAddDst<float, float, false>(dx, tt, ux[seg], MASK_PLACEHOLDER, reps, fold);
                 MulAddDst<float, float, false>(dy, tt, uy[seg], MASK_PLACEHOLDER, reps, fold);
                 MulAddDst<float, float, false>(dz, tt, uz[seg], MASK_PLACEHOLDER, reps, fold);
@@ -1928,7 +1878,7 @@ __global__ __aicore__ void tree_line_min_distance(GM_ADDR tree_points, GM_ADDR l
             if constexpr (PATH == 10) ICachePreLoad(3);
             TPipe pipe;
             if constexpr (PATH != 5 && PATH != 10) {
-            KernelPointGroups<DT_TREE_POINTS, PATH == 5 ? 1 : (PATH == 6 || PATH == 50 || PATH == 51 || PATH == 54 || PATH == 55 || PATH == 57 || PATH == 129 || (PATH == 155 || (PATH == 157 || PATH == 158)) || PATH == 80 ? 3 : 0), (PATH == 50 || PATH == 51 || PATH == 54 || PATH == 55 || PATH == 57 || PATH == 129 || (PATH == 155 || (PATH == 157 || PATH == 158))), PATH == 80, (PATH == 51 || PATH == 54 || PATH == 55 || PATH == 57 || (PATH == 155 || (PATH == 157 || PATH == 158))), (PATH == 54 || PATH == 55 || PATH == 57 || PATH == 129 || (PATH == 155 || (PATH == 157 || PATH == 158))), PATH == 55, PATH == 57, (PATH == 155 || (PATH == 157 || PATH == 158)), (PATH == 157 || PATH == 158), PATH == 158> op;
+            KernelPointGroups<DT_TREE_POINTS, PATH == 5 ? 1 : (PATH == 6 || PATH == 50 || PATH == 51 || PATH == 54 || PATH == 55 || PATH == 57 || PATH == 129 || PATH == 155 || PATH == 80 ? 3 : 0), (PATH == 50 || PATH == 51 || PATH == 54 || PATH == 55 || PATH == 57 || PATH == 129 || PATH == 155), PATH == 80, (PATH == 51 || PATH == 54 || PATH == 55 || PATH == 57 || PATH == 155), (PATH == 54 || PATH == 55 || PATH == 57 || PATH == 129 || PATH == 155), PATH == 55, PATH == 57, PATH == 155> op;
             op.Init(tree_points, line_segments, min_distance, nearest_segment_idx, t, &pipe);
             if constexpr (PATH == 10) op.ProcessOne();
             else op.Process();
