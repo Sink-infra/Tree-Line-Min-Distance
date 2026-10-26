@@ -142,6 +142,8 @@ static ge::graphStatus TilingFunc(gert::TilingContext *context) {
         context->SetBlockDim(singleTasks < cores ? singleTasks : cores);
     }
     if (b * n == 1 && mode == 0) PATH = 128;
+    if (mode == 3 && chunkPoints >= 128 && m >= 128) PATH = 155;
+    if (dtype == ge::DT_FLOAT && mode == 3 && chunkPoints >= 128 && m >= 128) PATH = 157;
     ASCENDC_TPL_SEL_PARAM(context,DT_TREE_POINTS,PATH);
     context->GetWorkspaceSizes(1)[0]=0;
     return ge::GRAPH_SUCCESS;
