@@ -91,46 +91,6 @@ __aicore__ inline void FixedSmallBatch(GM_ADDR p, GM_ADDR s, GM_ADDR d, GM_ADDR 
     if constexpr (LATE) ICachePreLoad(2);
     Hop<HardEvent::MTE2_S>();
     }
-    if constexpr (SEGS == 2) {
-    float px[POINTS], py[POINTS], pz[POINTS], best[POINTS];
-    int32_t winner[POINTS];
-    #pragma unroll
-    for (uint32_t point = 0; point < n; ++point) {
-        px[point] = (float)(DIRECT ? points.GetValue((uint64_t)batch * n * 3 + 3 * point) : pt.GetValue(3 * point));
-        py[point] = (float)(DIRECT ? points.GetValue((uint64_t)batch * n * 3 + 3 * point + 1) : pt.GetValue(3 * point + 1));
-        pz[point] = (float)(DIRECT ? points.GetValue((uint64_t)batch * n * 3 + 3 * point + 2) : pt.GetValue(3 * point + 2));
-        best[point] = kGuardDist;
-        winner[point] = 0;
-    }
-    #pragma unroll
-    for (uint32_t j = 0; j < segCount; ++j) {
-        const float ax = (float)(DIRECT ? segments.GetValue((uint64_t)batch * segCount * 6 + 6 * j) : seg.GetValue(6 * j));
-        const float ay = (float)(DIRECT ? segments.GetValue((uint64_t)batch * segCount * 6 + 6 * j + 1) : seg.GetValue(6 * j + 1));
-        const float az = (float)(DIRECT ? segments.GetValue((uint64_t)batch * segCount * 6 + 6 * j + 2) : seg.GetValue(6 * j + 2));
-        const float ux = (float)(DIRECT ? segments.GetValue((uint64_t)batch * segCount * 6 + 6 * j + 3) : seg.GetValue(6 * j + 3)) - ax;
-        const float uy = (float)(DIRECT ? segments.GetValue((uint64_t)batch * segCount * 6 + 6 * j + 4) : seg.GetValue(6 * j + 4)) - ay;
-        const float uz = (float)(DIRECT ? segments.GetValue((uint64_t)batch * segCount * 6 + 6 * j + 5) : seg.GetValue(6 * j + 5)) - az;
-        const float len = ux * ux + uy * uy + uz * uz;
-        #pragma unroll
-        for (uint32_t point = 0; point < n; ++point) {
-            float dx = px[point] - ax, dy = py[point] - ay, dz = pz[point] - az;
-            const float dot = dx * ux + dy * uy + dz * uz;
-            if (len > 0.0f && dot > 0.0f) {
-                const float ratio = dot < len ? dot / len : 1.0f;
-                dx -= ratio * ux;
-                dy -= ratio * uy;
-                dz -= ratio * uz;
-            }
-            const float value = dx * dx + dy * dy + dz * dz;
-            if (j == 0 || value < best[point]) { best[point] = value; winner[point] = (int32_t)j; }
-        }
-    }
-    #pragma unroll
-    for (uint32_t point = 0; point < n; ++point) {
-        dist.SetValue(point, best[point]);
-        idx.SetValue(point, winner[point]);
-    }
-    } else {
     #pragma unroll
     for (uint32_t point = 0; point < n; ++point) {
         const float px = (float)(DIRECT ? points.GetValue((uint64_t)batch * n * 3 + (3 * point)) : pt.GetValue(3 * point));
@@ -157,7 +117,6 @@ __aicore__ inline void FixedSmallBatch(GM_ADDR p, GM_ADDR s, GM_ADDR d, GM_ADDR 
             if (j == 0 || value < best) { best = value; winner = (int32_t)j; }
         }
         dist.SetValue(point, best); idx.SetValue(point, winner);
-    }
     }
     Hop<HardEvent::S_V>();
     Sqrt(dist, dist, n);

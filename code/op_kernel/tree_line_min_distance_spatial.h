@@ -68,6 +68,7 @@ __aicore__ inline void Visit(uint32_t cell, const LocalTensor<int32_t>& heads,
 }
 
 #include "tree_line_min_distance_spatial_vector.h"
+#include "tree_line_min_distance_spatial_bounds.h"
 
 template <typename T, bool VECTOR = false>
 __aicore__ inline bool Run(GM_ADDR p, GM_ADDR s, GM_ADDR d, GM_ADDR i,
@@ -173,6 +174,11 @@ __aicore__ inline bool Run(GM_ADDR p, GM_ADDR s, GM_ADDR d, GM_ADDR i,
         coordinates.SetValue(offset + 5, uz);
     }
     if (widths * scale > 8.0f * (float)(int32_t)t.m) return false;
+    bool ordered = false;
+    if constexpr (VECTOR) {
+        if (maxCandidates == 1) ordered = OrderedBounds(prefixHigh, suffixLow, cells);
+    }
+    if (!ordered) {
     float highest = -kGuardDist, lowest = kGuardDist;
     for (uint32_t c = 0; c < cells; ++c) {
         const float right = prefixHigh.GetValue(c);
@@ -183,8 +189,14 @@ __aicore__ inline bool Run(GM_ADDR p, GM_ADDR s, GM_ADDR d, GM_ADDR i,
         lowest = left < lowest ? left : lowest;
         suffixLow.SetValue(reverse, lowest);
     }
+    }
 
     if constexpr (VECTOR) {
+        if (maxCandidates == 1) {
+            Hop<HardEvent::S_V>();
+            CreateVecIndex(nearestCell, 0.0f, t.m);
+            Hop<HardEvent::V_S>();
+        } else {
         int32_t nearest = -1;
         for (uint32_t c = 0; c < cells; ++c) {
             if (heads.GetValue(c) >= 0) nearest = (int32_t)c;
@@ -197,6 +209,7 @@ __aicore__ inline bool Run(GM_ADDR p, GM_ADDR s, GM_ADDR d, GM_ADDR i,
             if (previous < 0 || (nearest < (int32_t)cells && nearest - c < c - previous)) {
                 nearestCell.SetValue(c, (float)nearest);
             }
+        }
         }
     }
 
