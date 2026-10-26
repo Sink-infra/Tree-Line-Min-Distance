@@ -137,14 +137,27 @@ __aicore__ inline bool Run(GM_ADDR p, GM_ADDR s, GM_ADDR d, GM_ADDR i,
         suffixLow.SetValue(c, kGuardDist);
     }
     float widths = 0.0f;
+    uint32_t maxCandidates = 1;
     for (uint32_t j = 0; j < t.m; ++j) {
         const uint32_t offset = 6 * j;
         const float a = coordinates.GetValue(offset + axis);
         const float c = coordinates.GetValue(offset + axis + 3);
         const float left = a < c ? a : c, right = a > c ? a : c;
         const uint32_t cell = Cell(a * 0.5f + c * 0.5f, low[axis], scale, cells);
-        next.SetValue(j, heads.GetValue(cell));
+        const int32_t previousHead = heads.GetValue(cell);
+        next.SetValue(j, previousHead);
         heads.SetValue(cell, (int32_t)j);
+        if constexpr (VECTOR) {
+            if (maxCandidates < 4 && previousHead >= 0) {
+                uint32_t depth = 1;
+                int32_t previous = previousHead;
+                while (previous >= 0 && depth < 4) {
+                    ++depth;
+                    previous = next.GetValue(previous);
+                }
+                maxCandidates = depth > maxCandidates ? depth : maxCandidates;
+            }
+        }
         const float oldHigh = prefixHigh.GetValue(cell);
         const float oldLow = suffixLow.GetValue(cell);
         prefixHigh.SetValue(cell, right > oldHigh ? right : oldHigh);
@@ -206,7 +219,7 @@ __aicore__ inline bool Run(GM_ADDR p, GM_ADDR s, GM_ADDR d, GM_ADDR i,
             Hop<HardEvent::MTE2_V>();
             VectorCandidates(pointSource, coordinates, heads, next, inverse,
                 prefixHigh, suffixLow, nearestCell, low[axis], scale, axis,
-                cells, count, dist, idx);
+                cells, count, maxCandidates, dist, idx);
         } else {
         for (uint32_t q = 0; q < count; ++q) {
             const float px = pointSource.GetValue(3 * q);

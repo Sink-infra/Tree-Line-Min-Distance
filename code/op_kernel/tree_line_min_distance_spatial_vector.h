@@ -5,7 +5,7 @@ __aicore__ inline void VectorCandidates(const LocalTensor<float>& pointSource,
     const LocalTensor<int32_t>& next, const LocalTensor<float>& inverse,
     const LocalTensor<float>& prefixHigh, const LocalTensor<float>& suffixLow,
     const LocalTensor<float>& nearestCell, float low, float scale, uint32_t axis,
-    uint32_t cells, uint32_t count, const LocalTensor<float>& dist,
+    uint32_t cells, uint32_t count, uint32_t maxCandidates, const LocalTensor<float>& dist,
     const LocalTensor<int32_t>& idx)
 {
     LocalTensor<float> px(TPosition::VECCALC, 80000, 128);
@@ -73,7 +73,7 @@ __aicore__ inline void VectorCandidates(const LocalTensor<float>& pointSource,
         Muls(temp, temp, 4.0f, count);
         Cast(offsets, temp, RoundMode::CAST_RINT, count);
         Gather(current, heads, bytes, 0u, count);
-        for (uint32_t step = 0; step < 4; ++step) {
+        for (uint32_t step = 0; step < maxCandidates; ++step) {
         Cast(currentFloat, current, RoundMode::CAST_NONE, count);
         CompareScalar(valid, currentFloat, 0.0f, CMPMODE::GE, count);
         Maxs(temp, currentFloat, 0.0f, count);
