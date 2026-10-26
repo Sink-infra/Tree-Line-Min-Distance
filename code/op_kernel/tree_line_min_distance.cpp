@@ -62,6 +62,8 @@ __aicore__ inline void Hop()
 }
 }  // namespace
 
+#include "tree_line_min_distance_spatial.h"
+
 template <typename T, uint32_t MODE, bool LARGE = false>
 class KernelTreeLineMinDistance {
     static constexpr uint32_t oDx = LARGE ? 9224 : ::oDx;
@@ -1832,6 +1834,17 @@ __global__ __aicore__ void tree_line_min_distance(GM_ADDR tree_points, GM_ADDR l
                                                   GM_ADDR workspace, GM_ADDR tiling)
 {
     REGISTER_TILING_DEFAULT(TreeLineMinDistanceTilingData);
+    if constexpr (PATH == 156) {
+        GET_TILING_DATA_WITH_STRUCT(TreeLineMinDistanceTilingData, spatialTiling, tiling);
+        if (TreeDistanceSpatial::Run<DT_TREE_POINTS>(tree_points, line_segments,
+            min_distance, nearest_segment_idx, spatialTiling)) return;
+        PipeBarrier<PIPE_ALL>();
+        TPipe pipe;
+        KernelPointGroups<DT_TREE_POINTS, 3, true, false, true, true, false, false, true> op;
+        op.Init(tree_points, line_segments, min_distance, nearest_segment_idx, spatialTiling, &pipe);
+        op.Process();
+        return;
+    }
     if constexpr (PATH >= 140 && PATH <= 153) {
         TPipe pipe;
         TBuf<TPosition::VECCALC> storage;
