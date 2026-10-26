@@ -63,6 +63,7 @@ __aicore__ inline void Hop()
 }  // namespace
 
 #include "tree_line_min_distance_spatial.h"
+#include "tree_line_min_distance_dense_points.h"
 
 template <typename T, uint32_t MODE, bool LARGE = false>
 class KernelTreeLineMinDistance {
@@ -1720,9 +1721,10 @@ __global__ __aicore__ void tree_line_min_distance(GM_ADDR tree_points, GM_ADDR l
         }
         PipeBarrier<PIPE_ALL>();
         TPipe pipe;
-        KernelPointGroups<DT_TREE_POINTS, 3, true, false, true, true, false, false, true> op;
-        op.Init(tree_points, line_segments, min_distance, nearest_segment_idx, spatialTiling, &pipe);
-        op.Process();
+        TBuf<TPosition::VECCALC> denseStorage;
+        pipe.InitBuffer(denseStorage, 188320);
+        DensePointTask<DT_TREE_POINTS>(tree_points, line_segments,
+            min_distance, nearest_segment_idx, spatialTiling);
         return;
     }
     if constexpr (PATH == 156) {

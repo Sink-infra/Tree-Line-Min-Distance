@@ -2,6 +2,35 @@
 
 namespace TreeDistanceSpatial {
 
+__aicore__ inline bool PreferDenseSample(const LocalTensor<float>& coordinates,
+                                        uint32_t segments)
+{
+    const uint32_t samples = segments < 16 ? segments : 16;
+    if (samples < 2) return false;
+    float low[3] = {kGuardDist, kGuardDist, kGuardDist};
+    float high[3] = {-kGuardDist, -kGuardDist, -kGuardDist};
+    float width[3] = {0.0f, 0.0f, 0.0f};
+    for (uint32_t k = 0; k < samples; ++k) {
+        const uint32_t offset = 6 * (k * (segments - 1) / (samples - 1));
+        #pragma unroll
+        for (uint32_t axis = 0; axis < 3; ++axis) {
+            const float a = coordinates.GetValue(offset + axis);
+            const float c = coordinates.GetValue(offset + axis + 3);
+            const float middle = a * 0.5f + c * 0.5f;
+            low[axis] = middle < low[axis] ? middle : low[axis];
+            high[axis] = middle > high[axis] ? middle : high[axis];
+            width[axis] += a < c ? c - a : a - c;
+        }
+    }
+    uint32_t axis = 0;
+    if (high[1] - low[1] > high[axis] - low[axis]) axis = 1;
+    if (high[2] - low[2] > high[axis] - low[axis]) axis = 2;
+    const float extent = high[axis] - low[axis];
+    if (!(extent > 0.0f && extent < 3.0e30f)) return true;
+    return width[axis] * (float)(int32_t)(segments - 1) >
+           32.0f * (float)(int32_t)samples * extent;
+}
+
 __aicore__ inline uint32_t Cell(float x, float low, float scale, uint32_t cells)
 {
     const float position = (x - low) * scale;
@@ -78,6 +107,10 @@ __aicore__ inline bool Run(GM_ADDR p, GM_ADDR s, GM_ADDR d, GM_ADDR i,
     } else {
         coordinates = raw.template ReinterpretCast<float>();
         Hop<HardEvent::MTE2_S>();
+    }
+
+    if constexpr (VECTOR) {
+        if (PreferDenseSample(coordinates, t.m)) return false;
     }
 
     float low[3] = {kGuardDist, kGuardDist, kGuardDist};
