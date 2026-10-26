@@ -38,7 +38,9 @@ __aicore__ inline void Visit(uint32_t cell, const LocalTensor<int32_t>& heads,
     }
 }
 
-template <typename T>
+#include "tree_line_min_distance_spatial_vector.h"
+
+template <typename T, bool VECTOR = false>
 __aicore__ inline bool Run(GM_ADDR p, GM_ADDR s, GM_ADDR d, GM_ADDR i,
                           const TreeLineMinDistanceTilingData& t)
 {
@@ -66,6 +68,7 @@ __aicore__ inline bool Run(GM_ADDR p, GM_ADDR s, GM_ADDR d, GM_ADDR i,
     LocalTensor<float> dist(TPosition::VECCALC, 72704, 128);
     LocalTensor<int32_t> idx(TPosition::VECCALC, 73216, 128);
     LocalTensor<T> narrow(TPosition::VECCALC, 73728, 128);
+    LocalTensor<float> nearestCell(TPosition::VECCALC, 74240, 1024);
     DataCopyPad(raw, segments[(uint64_t)batch * t.m * 6],
                 {1, (uint32_t)(t.m * 6 * sizeof(T)), 0, 0, 0}, {false, 0, 0, 0});
     if constexpr (sizeof(T) == 2) {
@@ -135,6 +138,22 @@ __aicore__ inline bool Run(GM_ADDR p, GM_ADDR s, GM_ADDR d, GM_ADDR i,
         suffixLow.SetValue(reverse, lowest);
     }
 
+    if constexpr (VECTOR) {
+        int32_t nearest = -1;
+        for (uint32_t c = 0; c < cells; ++c) {
+            if (heads.GetValue(c) >= 0) nearest = (int32_t)c;
+            nearestCell.SetValue(c, (float)nearest);
+        }
+        nearest = (int32_t)cells;
+        for (int32_t c = (int32_t)cells - 1; c >= 0; --c) {
+            if (heads.GetValue(c) >= 0) nearest = c;
+            const int32_t previous = (int32_t)nearestCell.GetValue(c);
+            if (previous < 0 || (nearest < (int32_t)cells && nearest - c < c - previous)) {
+                nearestCell.SetValue(c, (float)nearest);
+            }
+        }
+    }
+
     for (uint32_t done = 0; done < owned; done += 128) {
         const uint32_t count = owned - done < 128 ? owned - done : 128;
         if (done != 0) Hop<HardEvent::MTE3_S>();
@@ -149,6 +168,13 @@ __aicore__ inline bool Run(GM_ADDR p, GM_ADDR s, GM_ADDR d, GM_ADDR i,
         } else {
             Hop<HardEvent::MTE2_S>();
         }
+        if constexpr (VECTOR) {
+            Hop<HardEvent::S_V>();
+            Hop<HardEvent::MTE2_V>();
+            VectorCandidates(pointSource, coordinates, heads, next, inverse,
+                prefixHigh, suffixLow, nearestCell, low[axis], scale, axis,
+                cells, count, dist, idx);
+        } else {
         for (uint32_t q = 0; q < count; ++q) {
             const float px = pointSource.GetValue(3 * q);
             const float py = pointSource.GetValue(3 * q + 1);
@@ -181,6 +207,7 @@ __aicore__ inline bool Run(GM_ADDR p, GM_ADDR s, GM_ADDR d, GM_ADDR i,
             }
             dist.SetValue(q, best);
             idx.SetValue(q, winner);
+        }
         }
         Hop<HardEvent::S_V>();
         Sqrt(dist, dist, count);
