@@ -145,6 +145,7 @@ static ge::graphStatus TilingFunc(gert::TilingContext *context) {
     if (b * n == 1 && mode == 0) PATH = 128;
     if (mode == 3 && chunkPoints >= 384 && m >= 128) PATH = 155;
     if (b * n == 1 && m >= 3 && m <= 8) PATH = 117 + m;
+    if (n > 1 && n <= 8 && m == 1) PATH = 100 + n - 2;
     if (b * n == 1 && m <= 2) PATH = m + 1;
     if (mode == 3 && chunkPoints >= 1536 && m >= 128) PATH = 157;
     ASCENDC_TPL_SEL_PARAM(context,DT_TREE_POINTS,PATH);
