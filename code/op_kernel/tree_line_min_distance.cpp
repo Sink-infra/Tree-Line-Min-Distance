@@ -105,7 +105,7 @@ __global__ __aicore__ void tree_line_min_distance(GM_ADDR tree_points, GM_ADDR l
             op.Process();
         } else {
             TBuf<TPosition::VECCALC> denseStorage;
-            pipe.InitBuffer(denseStorage, 188320);
+            pipe.InitBuffer(denseStorage, 188416);
             DensePointTask<DT_TREE_POINTS>(tree_points, line_segments,
                 min_distance, nearest_segment_idx, spatialTiling);
         }

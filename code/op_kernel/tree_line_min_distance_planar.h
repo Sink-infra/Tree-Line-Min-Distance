@@ -100,13 +100,13 @@ __aicore__ inline void PlanarCandidates(const LocalTensor<float>& source,
     for (uint32_t axis = 0; axis < 2; ++axis) {
         const auto center = axis == 0 ? cx : cy;
         const auto coordinate = axis == 0 ? coordinate0 : coordinate1;
-        Adds(gap, center, -1.0f, count); Muls(gap, gap, 1.0f / scale[axis], count);
+        Adds(gap, center, -1.5f, count); Muls(gap, gap, 1.0f / scale[axis], count);
         Adds(gap, gap, low[axis] + radius[axis], count); Sub(gap, coordinate, gap, count);
         Maxs(gap, gap, 0.0f, count); Mins(gap, gap, 1.0e18f, count); Mul(gap, gap, gap, count);
         CompareScalar(keep, center, 1.0f, CMPMODE::GT, count);
         Select(gap, keep, gap, kGuardDist, SELMODE::VSEL_TENSOR_SCALAR_MODE, count);
         Min(bound, bound, gap, count);
-        Adds(gap, center, 2.0f, count); Muls(gap, gap, 1.0f / scale[axis], count);
+        Adds(gap, center, 1.5f, count); Muls(gap, gap, 1.0f / scale[axis], count);
         Adds(gap, gap, low[axis] - radius[axis], count); Sub(gap, gap, coordinate, count);
         Maxs(gap, gap, 0.0f, count); Mins(gap, gap, 1.0e18f, count); Mul(gap, gap, gap, count);
         CompareScalar(keep, center, (float)(int32_t)(side - 2), CMPMODE::LT, count);
@@ -169,7 +169,7 @@ __aicore__ inline bool PlanarRun(const GlobalTensor<T>& points,
         uint32_t cell[2];
         for (uint32_t k = 0; k < 2; ++k) {
             const uint32_t offset = 6 * j + axes[k];
-            cell[k] = Cell(coordinates.GetValue(offset) * 0.5f + coordinates.GetValue(offset + 3) * 0.5f,
+            cell[k] = RoundedSegmentCell(coordinates.GetValue(offset) * 0.5f + coordinates.GetValue(offset + 3) * 0.5f,
                            origin[k], scale[k], side);
         }
         const uint32_t c = cell[0] * side + cell[1];
