@@ -88,7 +88,7 @@ __global__ __aicore__ void tree_line_min_distance(GM_ADDR tree_points, GM_ADDR l
         PATH == 156) {
         InitSocState();
     }
-    if constexpr (PATH == 157 || PATH == 158) {
+    if constexpr (PATH == 157 || PATH == 158 || PATH == 159) {
         GET_TILING_DATA_WITH_STRUCT(TreeLineMinDistanceTilingData, spatialTiling, tiling);
         {
             TPipe candidatePipe;

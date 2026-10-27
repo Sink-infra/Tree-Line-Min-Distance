@@ -39,6 +39,15 @@ __aicore__ inline uint32_t Cell(float x, float low, float scale, uint32_t cells)
     return (uint32_t)(int32_t)position;
 }
 
+// Endpoint bounds certify all candidates omitted by these bins.
+__aicore__ inline uint32_t RoundedSegmentCell(float x, float low, float scale, uint32_t cells)
+{
+    const float position = (x - low) * scale + 0.5f;
+    if (!(position > 0.0f)) return 0;
+    if (position >= (float)(int32_t)(cells - 1)) return cells - 1;
+    return (uint32_t)(int32_t)position;
+}
+
 __aicore__ inline void Visit(uint32_t cell, const LocalTensor<int32_t>& heads,
     const LocalTensor<int32_t>& next, const LocalTensor<float>& coordinates,
     const LocalTensor<float>& inverse, float px, float py, float pz,
@@ -155,7 +164,8 @@ __aicore__ inline bool Run(GM_ADDR p, GM_ADDR s, GM_ADDR d, GM_ADDR i,
         const float a = coordinates.GetValue(offset + axis);
         const float c = coordinates.GetValue(offset + axis + 3);
         const float left = a < c ? a : c, right = a > c ? a : c;
-        const uint32_t cell = Cell(a * 0.5f + c * 0.5f, low[axis], scale, cells);
+        const uint32_t cell = VECTOR ? RoundedSegmentCell(a * 0.5f + c * 0.5f, low[axis], scale, cells)
+                                     : Cell(a * 0.5f + c * 0.5f, low[axis], scale, cells);
         const int32_t previousHead = heads.GetValue(cell);
         next.SetValue(j, previousHead);
         heads.SetValue(cell, (int32_t)j);
