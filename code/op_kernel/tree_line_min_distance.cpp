@@ -93,7 +93,7 @@ __global__ __aicore__ void tree_line_min_distance(GM_ADDR tree_points, GM_ADDR l
         {
             TPipe candidatePipe;
             TBuf<TPosition::VECCALC> candidateStorage;
-            candidatePipe.InitBuffer(candidateStorage, 95360);
+            candidatePipe.InitBuffer(candidateStorage, 150528);
             if (TreeDistanceSpatial::Run<DT_TREE_POINTS, true>(tree_points, line_segments,
                 min_distance, nearest_segment_idx, spatialTiling)) return;
         }

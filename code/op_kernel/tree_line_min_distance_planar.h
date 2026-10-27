@@ -9,35 +9,35 @@ __aicore__ inline void PlanarCandidates(const LocalTensor<float>& source,
     const float* radius, uint32_t side, uint32_t depth, uint32_t realCount,
     const LocalTensor<float>& dist, const LocalTensor<int32_t>& idx)
 {
-    LocalTensor<float> px(TPosition::VECCALC, 80000, 128);
-    LocalTensor<float> py(TPosition::VECCALC, 80512, 128);
-    LocalTensor<float> pz(TPosition::VECCALC, 81024, 128);
-    LocalTensor<float> cx(TPosition::VECCALC, 81536, 128);
-    LocalTensor<float> cy(TPosition::VECCALC, 82048, 128);
-    LocalTensor<int32_t> offsets(TPosition::VECCALC, 82560, 128);
-    LocalTensor<int32_t> current(TPosition::VECCALC, 83072, 128);
-    LocalTensor<float> currentFloat(TPosition::VECCALC, 83584, 128);
-    LocalTensor<int32_t> following(TPosition::VECCALC, 84096, 128);
-    LocalTensor<float> ax(TPosition::VECCALC, 84608, 128);
-    LocalTensor<float> ay(TPosition::VECCALC, 85120, 128);
-    LocalTensor<float> az(TPosition::VECCALC, 85632, 128);
-    LocalTensor<float> ux(TPosition::VECCALC, 86144, 128);
-    LocalTensor<float> uy(TPosition::VECCALC, 86656, 128);
-    LocalTensor<float> uz(TPosition::VECCALC, 87168, 128);
-    LocalTensor<float> dx(TPosition::VECCALC, 87680, 128);
-    LocalTensor<float> dy(TPosition::VECCALC, 88192, 128);
-    LocalTensor<float> dz(TPosition::VECCALC, 88704, 128);
-    LocalTensor<float> ratio(TPosition::VECCALC, 89216, 128);
-    LocalTensor<float> temp(TPosition::VECCALC, 89728, 128);
-    LocalTensor<float> winner(TPosition::VECCALC, 90240, 128);
-    LocalTensor<uint8_t> valid(TPosition::VECCALC, 90752, 256);
-    LocalTensor<uint8_t> keep(TPosition::VECCALC, 91008, 256);
-    LocalTensor<float> cellX(TPosition::VECCALC, 91264, 128);
-    LocalTensor<float> cellY(TPosition::VECCALC, 91776, 128);
-    LocalTensor<float> bound(TPosition::VECCALC, 92288, 128);
-    LocalTensor<float> gap(TPosition::VECCALC, 92800, 128);
-    LocalTensor<float> limit(TPosition::VECCALC, 93312, 128);
-    LocalTensor<float> certified(TPosition::VECCALC, 93824, 128);
+    LocalTensor<float> px(TPosition::VECCALC, 90112, 512);
+    LocalTensor<float> py(TPosition::VECCALC, 92160, 512);
+    LocalTensor<float> pz(TPosition::VECCALC, 94208, 512);
+    LocalTensor<float> cx(TPosition::VECCALC, 96256, 512);
+    LocalTensor<float> cy(TPosition::VECCALC, 98304, 512);
+    LocalTensor<int32_t> offsets(TPosition::VECCALC, 100352, 512);
+    LocalTensor<int32_t> current(TPosition::VECCALC, 102400, 512);
+    LocalTensor<float> currentFloat(TPosition::VECCALC, 104448, 512);
+    LocalTensor<int32_t> following(TPosition::VECCALC, 106496, 512);
+    LocalTensor<float> ax(TPosition::VECCALC, 108544, 512);
+    LocalTensor<float> ay(TPosition::VECCALC, 110592, 512);
+    LocalTensor<float> az(TPosition::VECCALC, 112640, 512);
+    LocalTensor<float> ux(TPosition::VECCALC, 114688, 512);
+    LocalTensor<float> uy(TPosition::VECCALC, 116736, 512);
+    LocalTensor<float> uz(TPosition::VECCALC, 118784, 512);
+    LocalTensor<float> dx(TPosition::VECCALC, 120832, 512);
+    LocalTensor<float> dy(TPosition::VECCALC, 122880, 512);
+    LocalTensor<float> dz(TPosition::VECCALC, 124928, 512);
+    LocalTensor<float> ratio(TPosition::VECCALC, 126976, 512);
+    LocalTensor<float> temp(TPosition::VECCALC, 129024, 512);
+    LocalTensor<float> winner(TPosition::VECCALC, 131072, 512);
+    LocalTensor<uint8_t> valid(TPosition::VECCALC, 133120, 256);
+    LocalTensor<uint8_t> keep(TPosition::VECCALC, 135168, 256);
+    LocalTensor<float> cellX(TPosition::VECCALC, 137216, 512);
+    LocalTensor<float> cellY(TPosition::VECCALC, 139264, 512);
+    LocalTensor<float> bound(TPosition::VECCALC, 141312, 512);
+    LocalTensor<float> gap(TPosition::VECCALC, 143360, 512);
+    LocalTensor<float> limit(TPosition::VECCALC, 145408, 512);
+    LocalTensor<float> certified(TPosition::VECCALC, 147456, 512);
     const uint32_t count = AlignLanes(realCount);
     Duplicate(px, 0.0f, count); Duplicate(py, 0.0f, count); Duplicate(pz, 0.0f, count);
     CreateVecIndex(temp, 0.0f, count);
@@ -196,13 +196,13 @@ __aicore__ inline bool PlanarRun(const GlobalTensor<T>& points,
         inverse.SetValue(j, length > 0.0f ? 1.0f / length : 0.0f);
         coordinates.SetValue(o + 3, ux); coordinates.SetValue(o + 4, uy); coordinates.SetValue(o + 5, uz);
     }
-    LocalTensor<T> raw(TPosition::VECCALC, 69632, 384);
-    LocalTensor<float> converted(TPosition::VECCALC, 71168, 384);
-    LocalTensor<float> dist(TPosition::VECCALC, 72704, 128);
-    LocalTensor<int32_t> idx(TPosition::VECCALC, 73216, 128);
-    LocalTensor<T> narrow(TPosition::VECCALC, 73728, 128);
-    for (uint32_t done = 0; done < owned; done += 128) {
-        const uint32_t count = owned - done < 128 ? owned - done : 128;
+    LocalTensor<T> raw(TPosition::VECCALC, 69632, 1536);
+    LocalTensor<float> converted(TPosition::VECCALC, 75776, 1536);
+    LocalTensor<float> dist(TPosition::VECCALC, 81920, 512);
+    LocalTensor<int32_t> idx(TPosition::VECCALC, 83968, 512);
+    LocalTensor<T> narrow(TPosition::VECCALC, 86016, 512);
+    for (uint32_t done = 0; done < owned; done += 512) {
+        const uint32_t count = owned - done < 512 ? owned - done : 512;
         if (done != 0) Hop<HardEvent::MTE3_S>();
         DataCopyPad(raw, points[((uint64_t)batch * t.n + begin + done) * 3],
                     {1, (uint32_t)(count * 3 * sizeof(T)), 0, 0, 0}, {false, 0, 0, 0});
