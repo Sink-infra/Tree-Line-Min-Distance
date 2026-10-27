@@ -100,7 +100,7 @@ __global__ __aicore__ void tree_line_min_distance(GM_ADDR tree_points, GM_ADDR l
         PipeBarrier<PIPE_ALL>();
         TPipe pipe;
         if (spatialTiling.chunkPoints < 1536) {
-            KernelPointGroups<DT_TREE_POINTS, 3, true, false, true, true, false, false, true> op;
+            KernelPointGroups<DT_TREE_POINTS, 3, true, false, true, true, true, false, true> op;
             op.Init(tree_points, line_segments, min_distance, nearest_segment_idx, spatialTiling, &pipe);
             op.Process();
         } else {
