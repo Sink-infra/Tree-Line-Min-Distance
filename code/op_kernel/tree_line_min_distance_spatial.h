@@ -70,6 +70,10 @@ __aicore__ inline void Visit(uint32_t cell, const LocalTensor<int32_t>& heads,
 #include "tree_line_min_distance_spatial_vector.h"
 #include "tree_line_min_distance_spatial_bounds.h"
 
+}
+#include "tree_line_min_distance_planar.h"
+namespace TreeDistanceSpatial {
+
 template <typename T, bool VECTOR = false>
 __aicore__ inline bool Run(GM_ADDR p, GM_ADDR s, GM_ADDR d, GM_ADDR i,
                           const TreeLineMinDistanceTilingData& t)
@@ -111,7 +115,8 @@ __aicore__ inline bool Run(GM_ADDR p, GM_ADDR s, GM_ADDR d, GM_ADDR i,
     }
 
     if constexpr (VECTOR) {
-        if (PreferDenseSample(coordinates, t.m)) return false;
+        if (PreferDenseSample(coordinates, t.m))
+            return PlanarRun(points, distances, indices, coordinates, t, batch, begin, owned);
     }
 
     float low[3] = {kGuardDist, kGuardDist, kGuardDist};
