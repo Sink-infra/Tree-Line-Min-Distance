@@ -15,8 +15,8 @@ __aicore__ inline void SinglePoint(GM_ADDR p, GM_ADDR s, GM_ADDR d, GM_ADDR i)
     LocalTensor<int32_t> idx(TPosition::VECCALC, 160, 8);
     LocalTensor<T> narrow(TPosition::VECCALC, 192, 16);
     if constexpr (DIRECT) {
-        InvalidateInputs(points, 0, 3);
-        InvalidateInputs(segments, 0, SEG * 6);
+        RefreshSource(points, 0, 3);
+        RefreshSource(segments, 0, SEG * 6);
     } else {
     DataCopyPad(pt, points, {1, (uint32_t)(3 * sizeof(T)), 0, 0, 0}, {false, 0, 0, 0});
     DataCopyPad(seg, segments, {1, (uint32_t)(SEG * 6 * sizeof(T)), 0, 0, 0}, {false, 0, 0, 0});
@@ -81,8 +81,8 @@ __aicore__ inline void FixedSmallBatch(GM_ADDR p, GM_ADDR s, GM_ADDR d, GM_ADDR 
     LocalTensor<int32_t> idx(TPosition::VECCALC, 416, 8);
     LocalTensor<T> narrow(TPosition::VECCALC, 448, 16);
     if constexpr (DIRECT) {
-        InvalidateInputs(points, (uint64_t)batch * n * 3, n * 3);
-        InvalidateInputs(segments, (uint64_t)batch * segCount * 6, segCount * 6);
+        RefreshSource(points, (uint64_t)batch * n * 3, n * 3);
+        RefreshSource(segments, (uint64_t)batch * segCount * 6, segCount * 6);
     } else {
     DataCopyPad(pt, points[(uint64_t)batch * n * 3],
                 {1, (uint32_t)(n * 3 * sizeof(T)), 0, 0, 0}, {false, 0, 0, 0});
