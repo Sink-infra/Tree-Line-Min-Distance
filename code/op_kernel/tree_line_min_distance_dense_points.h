@@ -112,34 +112,40 @@ __aicore__ inline void DensePointTask(GM_ADDR p, GM_ADDR s, GM_ADDR d, GM_ADDR i
             Muls(pz, pz, -1.0f, wide);
             Duplicate(winner, 0.0f, wide);
             Hop<HardEvent::V_S>();
+            const uint8_t repeats = wide / 64;
+            const UnaryRepeatParams unary(1, 1, 8, 8);
+            const BinaryRepeatParams binary(1, 1, 1, 8, 8, 8);
+            SetMaskNorm();
+            SetVectorMask<float, MaskMode::NORMAL>(64);
             for (int32_t j = 0; j < (int32_t)t.m; ++j) {
                 const float sax = ax.GetValue(j), say = ay.GetValue(j), saz = az.GetValue(j);
                 const float sux = ux.GetValue(j), suy = uy.GetValue(j), suz = uz.GetValue(j);
                 const float skx = kx.GetValue(j), sky = ky.GetValue(j), skz = kz.GetValue(j);
-                Adds(dx, px, sax, wide);
-                Adds(dy, py, say, wide);
-                Adds(dz, pz, saz, wide);
-                Muls(ratio, dx, skx, wide);
-                Axpy(ratio, dy, sky, wide);
-                Axpy(ratio, dz, skz, wide);
-                Maxs(ratio, ratio, 0.0f, wide);
-                Mins(ratio, ratio, 1.0f, wide);
-                Axpy(dx, ratio, sux, wide);
-                Axpy(dy, ratio, suy, wide);
-                Axpy(dz, ratio, suz, wide);
+                Adds<float, false>(dx, px, sax, MASK_PLACEHOLDER, repeats, unary);
+                Adds<float, false>(dy, py, say, MASK_PLACEHOLDER, repeats, unary);
+                Adds<float, false>(dz, pz, saz, MASK_PLACEHOLDER, repeats, unary);
+                Muls<float, false>(ratio, dx, skx, MASK_PLACEHOLDER, repeats, unary);
+                Axpy<float, float, false>(ratio, dy, sky, MASK_PLACEHOLDER, repeats, unary);
+                Axpy<float, float, false>(ratio, dz, skz, MASK_PLACEHOLDER, repeats, unary);
+                Maxs<float, false>(ratio, ratio, 0.0f, MASK_PLACEHOLDER, repeats, unary);
+                Mins<float, false>(ratio, ratio, 1.0f, MASK_PLACEHOLDER, repeats, unary);
+                Axpy<float, float, false>(dx, ratio, sux, MASK_PLACEHOLDER, repeats, unary);
+                Axpy<float, float, false>(dy, ratio, suy, MASK_PLACEHOLDER, repeats, unary);
+                Axpy<float, float, false>(dz, ratio, suz, MASK_PLACEHOLDER, repeats, unary);
                 if (j == 0) {
-                    Mul(best, dx, dx, wide);
-                    MulAddDst(best, dy, dy, wide);
-                    MulAddDst(best, dz, dz, wide);
+                    Mul<float, false>(best, dx, dx, MASK_PLACEHOLDER, repeats, binary);
+                    MulAddDst<float, float, false>(best, dy, dy, MASK_PLACEHOLDER, repeats, binary);
+                    MulAddDst<float, float, false>(best, dz, dz, MASK_PLACEHOLDER, repeats, binary);
                 } else {
-                    Mul(dsq, dx, dx, wide);
-                    MulAddDst(dsq, dy, dy, wide);
-                    MulAddDst(dsq, dz, dz, wide);
-                    Compare(keep, dsq, best, CMPMODE::GE, wide);
-                    Min(best, best, dsq, wide);
-                    Select(winner, keep, winner, (float)j, SELMODE::VSEL_TENSOR_SCALAR_MODE, wide);
+                    Mul<float, false>(dsq, dx, dx, MASK_PLACEHOLDER, repeats, binary);
+                    MulAddDst<float, float, false>(dsq, dy, dy, MASK_PLACEHOLDER, repeats, binary);
+                    MulAddDst<float, float, false>(dsq, dz, dz, MASK_PLACEHOLDER, repeats, binary);
+                    Compare<float, uint8_t, false>(keep, dsq, best, CMPMODE::GE, MASK_PLACEHOLDER, repeats, binary);
+                    Min<float, false>(best, best, dsq, MASK_PLACEHOLDER, repeats, binary);
+                    Select<float, uint8_t, true>(winner, keep, winner, (float)j, SELMODE::VSEL_TENSOR_SCALAR_MODE, 64, repeats, binary);
                 }
             }
+            ResetMask();
             Sqrt(best, best, count);
             LocalTensor<int32_t> outIndex = winner.ReinterpretCast<int32_t>();
             Cast(outIndex, winner, RoundMode::CAST_RINT, count);

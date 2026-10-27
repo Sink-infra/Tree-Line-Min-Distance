@@ -170,13 +170,14 @@ __aicore__ inline bool Run(GM_ADDR p, GM_ADDR s, GM_ADDR d, GM_ADDR i,
         next.SetValue(j, previousHead);
         heads.SetValue(cell, (int32_t)j);
         if constexpr (VECTOR) {
-            if (maxCandidates < 4 && previousHead >= 0) {
+            if (previousHead >= 0) {
                 uint32_t depth = 1;
                 int32_t previous = previousHead;
-                while (previous >= 0 && depth < 4) {
+                while (previous >= 0 && depth <= 4) {
                     ++depth;
                     previous = next.GetValue(previous);
                 }
+                if (depth > 4) return false;
                 maxCandidates = depth > maxCandidates ? depth : maxCandidates;
             }
         }
