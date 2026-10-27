@@ -1,8 +1,30 @@
 #pragma once
 
+__aicore__ inline void VisitPlanarSoA(uint32_t cell, const LocalTensor<int32_t>& heads,
+    const LocalTensor<int32_t>& next, const LocalTensor<float>& coordinates,
+    const LocalTensor<float>& directions, const LocalTensor<float>& inverse,
+    float px, float py, float pz, float& best, int32_t& winner)
+{
+    for (int32_t j = heads.GetValue(cell); j >= 0; j = next.GetValue(j)) {
+        const uint32_t offset = 6u * (uint32_t)j;
+        const float ax = coordinates.GetValue(offset), ay = coordinates.GetValue(offset + 1);
+        const float az = coordinates.GetValue(offset + 2);
+        const float ux = directions.GetValue(j), uy = directions.GetValue(1024 + j);
+        const float uz = directions.GetValue(2048 + j);
+        float dx = px - ax, dy = py - ay, dz = pz - az;
+        float ratio = (dx * ux + dy * uy + dz * uz) * inverse.GetValue(j);
+        ratio = ratio > 0.0f ? ratio : 0.0f;
+        ratio = ratio < 1.0f ? ratio : 1.0f;
+        dx -= ratio * ux; dy -= ratio * uy; dz -= ratio * uz;
+        const float value = dx * dx + dy * dy + dz * dz;
+        if (value < best || (value == best && j < winner)) { best = value; winner = j; }
+    }
+}
+
 template <bool WIDE = false>
 __aicore__ inline bool PlanarCandidates(const LocalTensor<float>& source,
-    const LocalTensor<float>& coordinates, const LocalTensor<int32_t>& heads,
+    const LocalTensor<float>& coordinates, const LocalTensor<float>& directions,
+    const LocalTensor<int32_t>& heads,
     const LocalTensor<int32_t>& next, const LocalTensor<float>& inverse,
     uint32_t axis0, uint32_t axis1, const float* low, const float* scale,
     const float* radius, uint32_t side, uint32_t depth, uint32_t realCount,
@@ -71,10 +93,12 @@ __aicore__ inline bool PlanarCandidates(const LocalTensor<float>& source,
                 Maxs(temp, currentFloat, 0.0f, count); Muls(temp, temp, 24.0f, count);
                 Cast(offsets, temp, RoundMode::CAST_RINT, count);
                 Gather(ax, coordinates, bytes, 0u, count); Gather(ay, coordinates, bytes, 4u, count);
-                Gather(az, coordinates, bytes, 8u, count); Gather(ux, coordinates, bytes, 12u, count);
-                Gather(uy, coordinates, bytes, 16u, count); Gather(uz, coordinates, bytes, 20u, count);
+                Gather(az, coordinates, bytes, 8u, count);
                 Maxs(temp, currentFloat, 0.0f, count); Muls(temp, temp, 4.0f, count);
                 Cast(offsets, temp, RoundMode::CAST_RINT, count);
+                Gather(ux, directions, bytes, 0u, count);
+                Gather(uy, directions[1024], bytes, 0u, count);
+                Gather(uz, directions[2048], bytes, 0u, count);
                 Gather(following, next, bytes, 0u, count); Gather(temp, inverse, bytes, 0u, count);
                 Sub(dx, px, ax, count); Sub(dy, py, ay, count); Sub(dz, pz, az, count);
                 Mul(ratio, dx, ux, count); MulAddDst(ratio, dy, uy, count); MulAddDst(ratio, dz, uz, count);
@@ -131,7 +155,7 @@ __aicore__ inline bool PlanarCandidates(const LocalTensor<float>& source,
         float best = kGuardDist; int32_t index = 0;
         const float x = px.GetValue(q), y = py.GetValue(q), z = pz.GetValue(q);
         for (uint32_t cell = 0; cell < side * side; ++cell)
-            Visit(cell, heads, next, coordinates, inverse, x, y, z, best, index);
+            VisitPlanarSoA(cell, heads, next, coordinates, directions, inverse, x, y, z, best, index);
         dist.SetValue(q, best); idx.SetValue(q, index);
     }
         return false;

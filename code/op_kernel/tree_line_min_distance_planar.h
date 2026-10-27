@@ -48,12 +48,12 @@ __aicore__ inline bool PlanarRun(const GlobalTensor<T>& points,
         sizes.SetValue(c, (int32_t)size); depth = size > depth ? size : depth;
         next.SetValue(j, heads.GetValue(c)); heads.SetValue(c, (int32_t)j);
     }
-    for (uint32_t j = 0; j < t.m; ++j) {
-        const uint32_t o = 6 * j;
-        coordinates.SetValue(o + 3, PreparedDirection(0).GetValue(j));
-        coordinates.SetValue(o + 4, PreparedDirection(1).GetValue(j));
-        coordinates.SetValue(o + 5, PreparedDirection(2).GetValue(j));
-    }
+    LocalTensor<float> directions(TPosition::VECCALC, sizeof(T) == 4 ? 24576 : 0, 3072);
+    Hop<HardEvent::S_V>();
+    for (uint32_t axis = 0; axis < 3; ++axis)
+        Copy<float>(directions[axis * 1024], PreparedDirection(axis), (uint64_t)64,
+                    (uint8_t)(AlignLanes(t.m) / 64), {1, 1, 8, 8});
+    Hop<HardEvent::V_S>();
     LocalTensor<T> raw(TPosition::VECCALC, 69632, 1536);
     LocalTensor<float> converted(TPosition::VECCALC, 75776, 1536);
     LocalTensor<float> dist(TPosition::VECCALC, 81920, 512);
@@ -70,21 +70,21 @@ __aicore__ inline bool PlanarRun(const GlobalTensor<T>& points,
         if constexpr (sizeof(T) == 2) { Cast(converted, raw, RoundMode::CAST_NONE, count * 3); source = converted; }
         Hop<HardEvent::S_V>();
         if constexpr (sizeof(T) == 2) {
-            PlanarCandidates<true>(source, coordinates, heads, next, inverse, axes[0], axes[1],
+            PlanarCandidates<true>(source, coordinates, directions, heads, next, inverse, axes[0], axes[1],
                              origin, scale, radius, side, depth, count, dist, idx);
         } else {
             if (done == 0) {
-                compact = PlanarCandidates<false>(source, coordinates, heads, next, inverse, axes[0], axes[1],
+                compact = PlanarCandidates<false>(source, coordinates, directions, heads, next, inverse, axes[0], axes[1],
                              origin, scale, radius, side, depth, count < 16 ? count : 16, dist, idx);
                 Hop<HardEvent::S_V>();
             }
             if (compact) {
-                compact = PlanarCandidates<false>(source, coordinates, heads, next, inverse, axes[0], axes[1],
+                compact = PlanarCandidates<false>(source, coordinates, directions, heads, next, inverse, axes[0], axes[1],
                              origin, scale, radius, side, depth, count, dist, idx);
             }
             if (!compact) {
                 Hop<HardEvent::S_V>();
-                PlanarCandidates<true>(source, coordinates, heads, next, inverse, axes[0], axes[1],
+                PlanarCandidates<true>(source, coordinates, directions, heads, next, inverse, axes[0], axes[1],
                              origin, scale, radius, side, depth, count, dist, idx);
             }
         }

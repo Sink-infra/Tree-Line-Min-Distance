@@ -2,11 +2,11 @@
 
 namespace TreeDistanceSpatial {
 
-__aicore__ inline bool PreferDenseSample(const LocalTensor<float>& coordinates,
+__aicore__ inline uint32_t PreferDenseSample(const LocalTensor<float>& coordinates,
                                         uint32_t segments)
 {
     const uint32_t samples = segments < 16 ? segments : 16;
-    if (samples < 2) return false;
+    if (samples < 2) return 0;
     float low[3] = {kGuardDist, kGuardDist, kGuardDist};
     float high[3] = {-kGuardDist, -kGuardDist, -kGuardDist};
     float width[3] = {0.0f, 0.0f, 0.0f};
@@ -26,9 +26,14 @@ __aicore__ inline bool PreferDenseSample(const LocalTensor<float>& coordinates,
     if (high[1] - low[1] > high[axis] - low[axis]) axis = 1;
     if (high[2] - low[2] > high[axis] - low[axis]) axis = 2;
     const float extent = high[axis] - low[axis];
-    if (!(extent > 0.0f && extent < 3.0e30f)) return true;
-    return width[axis] * (float)(int32_t)(segments - 1) >
-           32.0f * (float)(int32_t)samples * extent;
+    if (!(extent > 0.0f && extent < 3.0e30f)) return 2;
+    if (!(width[axis] * (float)(int32_t)(segments - 1) >
+          32.0f * (float)(int32_t)samples * extent)) return 0;
+    const float margin = 0.25f * (float)(int32_t)samples;
+    if (width[0] > margin * (high[0] - low[0]) &&
+        width[1] > margin * (high[1] - low[1]) &&
+        width[2] > margin * (high[2] - low[2])) return 2;
+    return 1;
 }
 
 __aicore__ inline uint32_t Cell(float x, float low, float scale, uint32_t cells)
@@ -125,10 +130,13 @@ __aicore__ inline bool Run(GM_ADDR p, GM_ADDR s, GM_ADDR d, GM_ADDR i,
     }
 
     if constexpr (VECTOR) {
-        if (PreferDenseSample(coordinates, t.m))
+        const uint32_t route = PreferDenseSample(coordinates, t.m);
+        if (route == 2) return false;
+        if (route == 1)
             return PlanarRun(points, distances, indices, coordinates, t, batch, begin, owned);
     }
 
+    if constexpr (VECTOR) ICachePreLoad(7);
     float low[3] = {kGuardDist, kGuardDist, kGuardDist};
     float high[3] = {-kGuardDist, -kGuardDist, -kGuardDist};
     if constexpr (VECTOR) {
