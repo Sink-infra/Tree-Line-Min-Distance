@@ -140,16 +140,8 @@ __aicore__ inline bool PlanarRun(const GlobalTensor<T>& points,
     float low[3] = {kGuardDist, kGuardDist, kGuardDist};
     float high[3] = {-kGuardDist, -kGuardDist, -kGuardDist};
     float width[3] = {0.0f, 0.0f, 0.0f};
-    for (uint32_t j = 0; j < t.m; ++j) {
-        for (uint32_t axis = 0; axis < 3; ++axis) {
-            const float a = coordinates.GetValue(6 * j + axis), c = coordinates.GetValue(6 * j + axis + 3);
-            const float mid = a * 0.5f + c * 0.5f;
-            low[axis] = mid < low[axis] ? mid : low[axis];
-            high[axis] = mid > high[axis] ? mid : high[axis];
-            const float span = a < c ? c - a : a - c;
-            width[axis] = span > width[axis] ? span : width[axis];
-        }
-    }
+    LocalTensor<float> inverse(TPosition::VECCALC, 65536, 1024);
+    PrepareGeometry(coordinates, inverse, t.m, low, high, width);
     uint32_t axes[3] = {0, 1, 2};
     float cost[3];
     for (uint32_t axis = 0; axis < 3; ++axis) {
@@ -171,7 +163,6 @@ __aicore__ inline bool PlanarRun(const GlobalTensor<T>& points,
     LocalTensor<int32_t> heads(TPosition::VECCALC, 49152, 1024);
     LocalTensor<int32_t> next(TPosition::VECCALC, 53248, 1024);
     LocalTensor<int32_t> sizes(TPosition::VECCALC, 57344, 1024);
-    LocalTensor<float> inverse(TPosition::VECCALC, 65536, 1024);
     uint32_t depth = 1;
     for (uint32_t c = 0; c < side * side; ++c) { heads.SetValue(c, -1); sizes.SetValue(c, 0); }
     for (uint32_t j = 0; j < t.m; ++j) {
@@ -189,12 +180,9 @@ __aicore__ inline bool PlanarRun(const GlobalTensor<T>& points,
     }
     for (uint32_t j = 0; j < t.m; ++j) {
         const uint32_t o = 6 * j;
-        const float ux = coordinates.GetValue(o + 3) - coordinates.GetValue(o);
-        const float uy = coordinates.GetValue(o + 4) - coordinates.GetValue(o + 1);
-        const float uz = coordinates.GetValue(o + 5) - coordinates.GetValue(o + 2);
-        const float length = ux * ux + uy * uy + uz * uz;
-        inverse.SetValue(j, length > 0.0f ? 1.0f / length : 0.0f);
-        coordinates.SetValue(o + 3, ux); coordinates.SetValue(o + 4, uy); coordinates.SetValue(o + 5, uz);
+        coordinates.SetValue(o + 3, PreparedDirection(0).GetValue(j));
+        coordinates.SetValue(o + 4, PreparedDirection(1).GetValue(j));
+        coordinates.SetValue(o + 5, PreparedDirection(2).GetValue(j));
     }
     LocalTensor<T> raw(TPosition::VECCALC, 69632, 1536);
     LocalTensor<float> converted(TPosition::VECCALC, 75776, 1536);

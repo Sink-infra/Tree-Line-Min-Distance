@@ -67,6 +67,7 @@ __aicore__ inline void Visit(uint32_t cell, const LocalTensor<int32_t>& heads,
     }
 }
 
+#include "tree_line_min_distance_spatial_prepare.h"
 #include "tree_line_min_distance_spatial_vector.h"
 #include "tree_line_min_distance_spatial_bounds.h"
 
@@ -121,6 +122,10 @@ __aicore__ inline bool Run(GM_ADDR p, GM_ADDR s, GM_ADDR d, GM_ADDR i,
 
     float low[3] = {kGuardDist, kGuardDist, kGuardDist};
     float high[3] = {-kGuardDist, -kGuardDist, -kGuardDist};
+    if constexpr (VECTOR) {
+        float widths[3];
+        PrepareGeometry(coordinates, inverse, t.m, low, high, widths);
+    } else {
     for (uint32_t j = 0; j < t.m; ++j) {
         for (uint32_t axis = 0; axis < 3; ++axis) {
             const float middle = coordinates.GetValue(6 * j + axis) * 0.5f +
@@ -128,6 +133,7 @@ __aicore__ inline bool Run(GM_ADDR p, GM_ADDR s, GM_ADDR d, GM_ADDR i,
             low[axis] = middle < low[axis] ? middle : low[axis];
             high[axis] = middle > high[axis] ? middle : high[axis];
         }
+    }
     }
     uint32_t axis = 0;
     if (high[1] - low[1] > high[axis] - low[axis]) axis = 1;
@@ -169,6 +175,11 @@ __aicore__ inline bool Run(GM_ADDR p, GM_ADDR s, GM_ADDR d, GM_ADDR i,
         prefixHigh.SetValue(cell, right > oldHigh ? right : oldHigh);
         suffixLow.SetValue(cell, left < oldLow ? left : oldLow);
         widths += right - left;
+        if constexpr (VECTOR) {
+            coordinates.SetValue(offset + 3, PreparedDirection(0).GetValue(j));
+            coordinates.SetValue(offset + 4, PreparedDirection(1).GetValue(j));
+            coordinates.SetValue(offset + 5, PreparedDirection(2).GetValue(j));
+        } else {
         const float ux = coordinates.GetValue(offset + 3) - coordinates.GetValue(offset);
         const float uy = coordinates.GetValue(offset + 4) - coordinates.GetValue(offset + 1);
         const float uz = coordinates.GetValue(offset + 5) - coordinates.GetValue(offset + 2);
@@ -177,6 +188,7 @@ __aicore__ inline bool Run(GM_ADDR p, GM_ADDR s, GM_ADDR d, GM_ADDR i,
         coordinates.SetValue(offset + 3, ux);
         coordinates.SetValue(offset + 4, uy);
         coordinates.SetValue(offset + 5, uz);
+        }
     }
     if (widths * scale > 8.0f * (float)(int32_t)t.m) return false;
     bool ordered = false;
