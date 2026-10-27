@@ -33,7 +33,6 @@ __aicore__ inline void DensePointTask(GM_ADDR p, GM_ADDR s, GM_ADDR d, GM_ADDR i
     LocalTensor<int32_t> pointOffsets(TPosition::VECCALC, 171008, tile);
     LocalTensor<int32_t> segmentOffsets(TPosition::VECCALC, 184320, 1024);
     LocalTensor<half> narrow(TPosition::VECCALC, 50176, tile);
-    // Residuals are dead before the comparison mask is produced.
     LocalTensor<uint8_t> keep(TPosition::VECCALC, 36864, 512);
     LocalTensor<T> raw(TPosition::VECCALC, 36864, tile * 3);
     LocalTensor<float> converted(TPosition::VECCALC, 77056, tile * 3);
@@ -130,16 +129,12 @@ __aicore__ inline void DensePointTask(GM_ADDR p, GM_ADDR s, GM_ADDR d, GM_ADDR i
                 Axpy(dz, ratio, suz, wide);
                 if (j == 0) {
                     Mul(best, dx, dx, wide);
-                    Mul(dy, dy, dy, wide);
-                    Mul(dz, dz, dz, wide);
-                    Add(best, best, dy, wide);
-                    Add(best, best, dz, wide);
+                    MulAddDst(best, dy, dy, wide);
+                    MulAddDst(best, dz, dz, wide);
                 } else {
                     Mul(dsq, dx, dx, wide);
-                    Mul(dy, dy, dy, wide);
-                    Mul(dz, dz, dz, wide);
-                    Add(dsq, dsq, dy, wide);
-                    Add(dsq, dsq, dz, wide);
+                    MulAddDst(dsq, dy, dy, wide);
+                    MulAddDst(dsq, dz, dz, wide);
                     Compare(keep, dsq, best, CMPMODE::GE, wide);
                     Min(best, best, dsq, wide);
                     Select(winner, keep, winner, (float)j, SELMODE::VSEL_TENSOR_SCALAR_MODE, wide);
