@@ -1,4 +1,5 @@
 #pragma once
+#include "tree_line_min_distance_planar_prepare.h"
 
 namespace TreeDistanceSpatial {
 
@@ -164,15 +165,9 @@ __aicore__ inline bool PlanarRun(const GlobalTensor<T>& points,
     LocalTensor<int32_t> next(TPosition::VECCALC, 53248, 1024);
     LocalTensor<int32_t> sizes(TPosition::VECCALC, 57344, 1024);
     uint32_t depth = 1;
-    for (uint32_t c = 0; c < side * side; ++c) { heads.SetValue(c, -1); sizes.SetValue(c, 0); }
+    const auto cells = PreparePlanarCells(coordinates, heads, sizes, axes, origin, scale, side, t.m);
     for (uint32_t j = 0; j < t.m; ++j) {
-        uint32_t cell[2];
-        for (uint32_t k = 0; k < 2; ++k) {
-            const uint32_t offset = 6 * j + axes[k];
-            cell[k] = RoundedSegmentCell(coordinates.GetValue(offset) * 0.5f + coordinates.GetValue(offset + 3) * 0.5f,
-                           origin[k], scale[k], side);
-        }
-        const uint32_t c = cell[0] * side + cell[1];
+        const uint32_t c = (uint32_t)cells.GetValue(j);
         const uint32_t size = (uint32_t)sizes.GetValue(c) + 1;
         if (size > 4) return false;
         sizes.SetValue(c, (int32_t)size); depth = size > depth ? size : depth;
