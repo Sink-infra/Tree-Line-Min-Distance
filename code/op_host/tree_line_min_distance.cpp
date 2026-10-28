@@ -150,6 +150,10 @@ static ge::graphStatus TilingFunc(gert::TilingContext *context) {
     if (mode == 3 && chunkPoints >= 768 && m >= 128) PATH = 159;
     if (b == 1 && n == 1 && m <= 8) { PATH = 193 + m; context->SetBlockDim(1); }
     if (b == 1 && n >= 2 && n <= 8 && m <= 2) { PATH = 202 + (m - 1) * 7 + n - 2; context->SetBlockDim(b); }
+    if (b == 1 && n > 1 && n <= 8 && m == 1) PATH = 233 + n - 1;
+    if (b * n == 1 && m == 1) PATH = 2;
+    if (b * n == 1 && m == 2 && dtype == ge::DT_FLOAT16) PATH = 241;
+    if (b * n == 1 && m >= 3 && m <= 8) PATH = 117 + m;
     ASCENDC_TPL_SEL_PARAM(context,DT_TREE_POINTS,PATH);
     context->GetWorkspaceSizes(1)[0]=0;
     return ge::GRAPH_SUCCESS;
