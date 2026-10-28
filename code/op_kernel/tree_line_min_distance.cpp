@@ -83,6 +83,12 @@ __global__ __aicore__ void tree_line_min_distance(GM_ADDR tree_points, GM_ADDR l
                                                   GM_ADDR workspace, GM_ADDR tiling)
 {
     REGISTER_TILING_DEFAULT(TreeLineMinDistanceTilingData);
+    if constexpr (PATH >= 244 && PATH <= 249) {
+        InitSocState();
+        SinglePoint<DT_TREE_POINTS, PATH - 241, true, false, true, false, 1>(
+            tree_points,line_segments,min_distance,nearest_segment_idx);
+        return;
+    }
     if constexpr (PATH == 241) {
         InitSocState();
         SinglePoint<DT_TREE_POINTS, 2, true, false, true, true>(

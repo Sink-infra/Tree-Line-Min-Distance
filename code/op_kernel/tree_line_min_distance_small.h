@@ -1,6 +1,6 @@
 #pragma once
 
-template <typename T, uint32_t SEG, bool LATE = false, bool DIRECT = false, bool ROOT = false, bool TWO_STEPS = false>
+template <typename T, uint32_t SEG, bool LATE = false, bool DIRECT = false, bool ROOT = false, bool TWO_STEPS = false, uint32_t PRELOAD = 2>
 __aicore__ inline void SinglePoint(GM_ADDR p, GM_ADDR s, GM_ADDR d, GM_ADDR i)
 {
     GlobalTensor<T> points, segments, distances;
@@ -27,7 +27,7 @@ __aicore__ inline void SinglePoint(GM_ADDR p, GM_ADDR s, GM_ADDR d, GM_ADDR i)
     } else {
     DataCopyPad(pt, points, {1, (uint32_t)(3 * sizeof(T)), 0, 0, 0}, {false, 0, 0, 0});
     DataCopyPad(seg, segments, {1, (uint32_t)(SEG * 6 * sizeof(T)), 0, 0, 0}, {false, 0, 0, 0});
-    if constexpr (LATE) ICachePreLoad(2);
+    if constexpr (LATE) ICachePreLoad(PRELOAD);
     Hop<HardEvent::MTE2_S>();
     }
     const float px = (float)(DIRECT ? points.GetValue(0) : pt.GetValue(0));
