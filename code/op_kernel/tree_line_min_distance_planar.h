@@ -1,133 +1,9 @@
 #pragma once
+#include "tree_line_min_distance_planar_prepare.h"
 
 namespace TreeDistanceSpatial {
 
-__aicore__ inline void PlanarCandidates(const LocalTensor<float>& source,
-    const LocalTensor<float>& coordinates, const LocalTensor<int32_t>& heads,
-    const LocalTensor<int32_t>& next, const LocalTensor<float>& inverse,
-    uint32_t axis0, uint32_t axis1, const float* low, const float* scale,
-    const float* radius, uint32_t side, uint32_t depth, uint32_t realCount,
-    const LocalTensor<float>& dist, const LocalTensor<int32_t>& idx)
-{
-    LocalTensor<float> px(TPosition::VECCALC, 80000, 128);
-    LocalTensor<float> py(TPosition::VECCALC, 80512, 128);
-    LocalTensor<float> pz(TPosition::VECCALC, 81024, 128);
-    LocalTensor<float> cx(TPosition::VECCALC, 81536, 128);
-    LocalTensor<float> cy(TPosition::VECCALC, 82048, 128);
-    LocalTensor<int32_t> offsets(TPosition::VECCALC, 82560, 128);
-    LocalTensor<int32_t> current(TPosition::VECCALC, 83072, 128);
-    LocalTensor<float> currentFloat(TPosition::VECCALC, 83584, 128);
-    LocalTensor<int32_t> following(TPosition::VECCALC, 84096, 128);
-    LocalTensor<float> ax(TPosition::VECCALC, 84608, 128);
-    LocalTensor<float> ay(TPosition::VECCALC, 85120, 128);
-    LocalTensor<float> az(TPosition::VECCALC, 85632, 128);
-    LocalTensor<float> ux(TPosition::VECCALC, 86144, 128);
-    LocalTensor<float> uy(TPosition::VECCALC, 86656, 128);
-    LocalTensor<float> uz(TPosition::VECCALC, 87168, 128);
-    LocalTensor<float> dx(TPosition::VECCALC, 87680, 128);
-    LocalTensor<float> dy(TPosition::VECCALC, 88192, 128);
-    LocalTensor<float> dz(TPosition::VECCALC, 88704, 128);
-    LocalTensor<float> ratio(TPosition::VECCALC, 89216, 128);
-    LocalTensor<float> temp(TPosition::VECCALC, 89728, 128);
-    LocalTensor<float> winner(TPosition::VECCALC, 90240, 128);
-    LocalTensor<uint8_t> valid(TPosition::VECCALC, 90752, 256);
-    LocalTensor<uint8_t> keep(TPosition::VECCALC, 91008, 256);
-    LocalTensor<float> cellX(TPosition::VECCALC, 91264, 128);
-    LocalTensor<float> cellY(TPosition::VECCALC, 91776, 128);
-    LocalTensor<float> bound(TPosition::VECCALC, 92288, 128);
-    LocalTensor<float> gap(TPosition::VECCALC, 92800, 128);
-    LocalTensor<float> limit(TPosition::VECCALC, 93312, 128);
-    LocalTensor<float> certified(TPosition::VECCALC, 93824, 128);
-    const uint32_t count = AlignLanes(realCount);
-    Duplicate(px, 0.0f, count); Duplicate(py, 0.0f, count); Duplicate(pz, 0.0f, count);
-    CreateVecIndex(temp, 0.0f, count);
-    Muls(temp, temp, 12.0f, count);
-    Cast(offsets, temp, RoundMode::CAST_RINT, count);
-    const auto bytes = offsets.ReinterpretCast<uint32_t>();
-    Gather(px, source, bytes, 0u, realCount);
-    Gather(py, source, bytes, 4u, realCount);
-    Gather(pz, source, bytes, 8u, realCount);
-    LocalTensor<float> coordinate0 = axis0 == 0 ? px : (axis0 == 1 ? py : pz);
-    LocalTensor<float> coordinate1 = axis1 == 0 ? px : (axis1 == 1 ? py : pz);
-    Adds(cx, coordinate0, -low[0], count); Muls(cx, cx, scale[0], count);
-    Adds(cy, coordinate1, -low[1], count); Muls(cy, cy, scale[1], count);
-    Maxs(cx, cx, 0.0f, count); Mins(cx, cx, (float)(int32_t)(side - 1), count);
-    Maxs(cy, cy, 0.0f, count); Mins(cy, cy, (float)(int32_t)(side - 1), count);
-    Cast(offsets, cx, RoundMode::CAST_FLOOR, count); Cast(cx, offsets, RoundMode::CAST_NONE, count);
-    Cast(offsets, cy, RoundMode::CAST_FLOOR, count); Cast(cy, offsets, RoundMode::CAST_NONE, count);
-    Duplicate(dist, kGuardDist, count); Duplicate(winner, 0.0f, count);
-    for (int32_t x = -1; x <= 1; ++x) {
-        Adds(cellX, cx, (float)x, count);
-        Maxs(cellX, cellX, 0.0f, count); Mins(cellX, cellX, (float)(int32_t)(side - 1), count);
-        Muls(cellX, cellX, (float)(int32_t)side, count);
-        for (int32_t y = -1; y <= 1; ++y) {
-            Adds(cellY, cy, (float)y, count);
-            Maxs(cellY, cellY, 0.0f, count); Mins(cellY, cellY, (float)(int32_t)(side - 1), count);
-            Add(temp, cellX, cellY, count); Muls(temp, temp, 4.0f, count);
-            Cast(offsets, temp, RoundMode::CAST_RINT, count);
-            Gather(current, heads, bytes, 0u, count);
-            for (uint32_t step = 0; step < depth; ++step) {
-                Cast(currentFloat, current, RoundMode::CAST_NONE, count);
-                CompareScalar(valid, currentFloat, 0.0f, CMPMODE::GE, count);
-                Maxs(temp, currentFloat, 0.0f, count); Muls(temp, temp, 24.0f, count);
-                Cast(offsets, temp, RoundMode::CAST_RINT, count);
-                Gather(ax, coordinates, bytes, 0u, count); Gather(ay, coordinates, bytes, 4u, count);
-                Gather(az, coordinates, bytes, 8u, count); Gather(ux, coordinates, bytes, 12u, count);
-                Gather(uy, coordinates, bytes, 16u, count); Gather(uz, coordinates, bytes, 20u, count);
-                Maxs(temp, currentFloat, 0.0f, count); Muls(temp, temp, 4.0f, count);
-                Cast(offsets, temp, RoundMode::CAST_RINT, count);
-                Gather(following, next, bytes, 0u, count); Gather(temp, inverse, bytes, 0u, count);
-                Sub(dx, px, ax, count); Sub(dy, py, ay, count); Sub(dz, pz, az, count);
-                Mul(ratio, dx, ux, count); MulAddDst(ratio, dy, uy, count); MulAddDst(ratio, dz, uz, count);
-                Mul(ratio, ratio, temp, count); Maxs(ratio, ratio, 0.0f, count); Mins(ratio, ratio, 1.0f, count);
-                Mul(temp, ratio, ux, count); Sub(dx, dx, temp, count);
-                Mul(temp, ratio, uy, count); Sub(dy, dy, temp, count);
-                Mul(temp, ratio, uz, count); Sub(dz, dz, temp, count);
-                Mul(temp, dx, dx, count); MulAddDst(temp, dy, dy, count); MulAddDst(temp, dz, dz, count);
-                Select(temp, valid, temp, kGuardDist, SELMODE::VSEL_TENSOR_SCALAR_MODE, count);
-                Compare(keep, temp, dist, CMPMODE::LT, count);
-                Select(winner, keep, currentFloat, winner, SELMODE::VSEL_TENSOR_TENSOR_MODE, count);
-                Min(dist, dist, temp, count);
-                Compare(keep, temp, dist, CMPMODE::EQ, count);
-                Min(temp, winner, currentFloat, count);
-                Select(winner, keep, temp, winner, SELMODE::VSEL_TENSOR_TENSOR_MODE, count);
-                Select(current.ReinterpretCast<float>(), valid, following.ReinterpretCast<float>(),
-                       current.ReinterpretCast<float>(), SELMODE::VSEL_TENSOR_TENSOR_MODE, count);
-            }
-        }
-    }
-    Duplicate(bound, kGuardDist, count);
-    for (uint32_t axis = 0; axis < 2; ++axis) {
-        const auto center = axis == 0 ? cx : cy;
-        const auto coordinate = axis == 0 ? coordinate0 : coordinate1;
-        Adds(gap, center, -1.0f, count); Muls(gap, gap, 1.0f / scale[axis], count);
-        Adds(gap, gap, low[axis] + radius[axis], count); Sub(gap, coordinate, gap, count);
-        Maxs(gap, gap, 0.0f, count); Mins(gap, gap, 1.0e18f, count); Mul(gap, gap, gap, count);
-        CompareScalar(keep, center, 1.0f, CMPMODE::GT, count);
-        Select(gap, keep, gap, kGuardDist, SELMODE::VSEL_TENSOR_SCALAR_MODE, count);
-        Min(bound, bound, gap, count);
-        Adds(gap, center, 2.0f, count); Muls(gap, gap, 1.0f / scale[axis], count);
-        Adds(gap, gap, low[axis] - radius[axis], count); Sub(gap, gap, coordinate, count);
-        Maxs(gap, gap, 0.0f, count); Mins(gap, gap, 1.0e18f, count); Mul(gap, gap, gap, count);
-        CompareScalar(keep, center, (float)(int32_t)(side - 2), CMPMODE::LT, count);
-        Select(gap, keep, gap, kGuardDist, SELMODE::VSEL_TENSOR_SCALAR_MODE, count);
-        Min(bound, bound, gap, count);
-    }
-    Muls(limit, dist, 1.0001f, count); Adds(limit, limit, 0.0001f, count);
-    Compare(keep, bound, limit, CMPMODE::GT, count);
-    Duplicate(certified, 1.0f, count);
-    Select(certified, keep, certified, 0.0f, SELMODE::VSEL_TENSOR_SCALAR_MODE, count);
-    Cast(idx, winner, RoundMode::CAST_RINT, count);
-    Hop<HardEvent::V_S>();
-    for (uint32_t q = 0; q < realCount; ++q) {
-        if (certified.GetValue(q) != 0.0f) continue;
-        float best = kGuardDist; int32_t index = 0;
-        const float x = px.GetValue(q), y = py.GetValue(q), z = pz.GetValue(q);
-        for (uint32_t cell = 0; cell < side * side; ++cell)
-            Visit(cell, heads, next, coordinates, inverse, x, y, z, best, index);
-        dist.SetValue(q, best); idx.SetValue(q, index);
-    }
-}
+#include "tree_line_min_distance_planar_candidates.h"
 
 template <typename T>
 __aicore__ inline bool PlanarRun(const GlobalTensor<T>& points,
@@ -140,16 +16,8 @@ __aicore__ inline bool PlanarRun(const GlobalTensor<T>& points,
     float low[3] = {kGuardDist, kGuardDist, kGuardDist};
     float high[3] = {-kGuardDist, -kGuardDist, -kGuardDist};
     float width[3] = {0.0f, 0.0f, 0.0f};
-    for (uint32_t j = 0; j < t.m; ++j) {
-        for (uint32_t axis = 0; axis < 3; ++axis) {
-            const float a = coordinates.GetValue(6 * j + axis), c = coordinates.GetValue(6 * j + axis + 3);
-            const float mid = a * 0.5f + c * 0.5f;
-            low[axis] = mid < low[axis] ? mid : low[axis];
-            high[axis] = mid > high[axis] ? mid : high[axis];
-            const float span = a < c ? c - a : a - c;
-            width[axis] = span > width[axis] ? span : width[axis];
-        }
-    }
+    LocalTensor<float> inverse(TPosition::VECCALC, 65536, 1024);
+    PrepareGeometry(coordinates, inverse, t.m, low, high, width);
     uint32_t axes[3] = {0, 1, 2};
     float cost[3];
     for (uint32_t axis = 0; axis < 3; ++axis) {
@@ -171,38 +39,29 @@ __aicore__ inline bool PlanarRun(const GlobalTensor<T>& points,
     LocalTensor<int32_t> heads(TPosition::VECCALC, 49152, 1024);
     LocalTensor<int32_t> next(TPosition::VECCALC, 53248, 1024);
     LocalTensor<int32_t> sizes(TPosition::VECCALC, 57344, 1024);
-    LocalTensor<float> inverse(TPosition::VECCALC, 65536, 1024);
     uint32_t depth = 1;
-    for (uint32_t c = 0; c < side * side; ++c) { heads.SetValue(c, -1); sizes.SetValue(c, 0); }
+    const auto cells = PreparePlanarCells(coordinates, heads, sizes, axes, origin, scale, side, t.m);
     for (uint32_t j = 0; j < t.m; ++j) {
-        uint32_t cell[2];
-        for (uint32_t k = 0; k < 2; ++k) {
-            const uint32_t offset = 6 * j + axes[k];
-            cell[k] = Cell(coordinates.GetValue(offset) * 0.5f + coordinates.GetValue(offset + 3) * 0.5f,
-                           origin[k], scale[k], side);
-        }
-        const uint32_t c = cell[0] * side + cell[1];
+        const uint32_t c = (uint32_t)cells.GetValue(j);
         const uint32_t size = (uint32_t)sizes.GetValue(c) + 1;
         if (size > 4) return false;
         sizes.SetValue(c, (int32_t)size); depth = size > depth ? size : depth;
         next.SetValue(j, heads.GetValue(c)); heads.SetValue(c, (int32_t)j);
     }
-    for (uint32_t j = 0; j < t.m; ++j) {
-        const uint32_t o = 6 * j;
-        const float ux = coordinates.GetValue(o + 3) - coordinates.GetValue(o);
-        const float uy = coordinates.GetValue(o + 4) - coordinates.GetValue(o + 1);
-        const float uz = coordinates.GetValue(o + 5) - coordinates.GetValue(o + 2);
-        const float length = ux * ux + uy * uy + uz * uz;
-        inverse.SetValue(j, length > 0.0f ? 1.0f / length : 0.0f);
-        coordinates.SetValue(o + 3, ux); coordinates.SetValue(o + 4, uy); coordinates.SetValue(o + 5, uz);
-    }
-    LocalTensor<T> raw(TPosition::VECCALC, 69632, 384);
-    LocalTensor<float> converted(TPosition::VECCALC, 71168, 384);
-    LocalTensor<float> dist(TPosition::VECCALC, 72704, 128);
-    LocalTensor<int32_t> idx(TPosition::VECCALC, 73216, 128);
-    LocalTensor<T> narrow(TPosition::VECCALC, 73728, 128);
-    for (uint32_t done = 0; done < owned; done += 128) {
-        const uint32_t count = owned - done < 128 ? owned - done : 128;
+    LocalTensor<float> directions(TPosition::VECCALC, sizeof(T) == 4 ? 24576 : 0, 3072);
+    Hop<HardEvent::S_V>();
+    for (uint32_t axis = 0; axis < 3; ++axis)
+        Copy<float>(directions[axis * 1024], PreparedDirection(axis), (uint64_t)64,
+                    (uint8_t)(AlignLanes(t.m) / 64), {1, 1, 8, 8});
+    Hop<HardEvent::V_S>();
+    LocalTensor<T> raw(TPosition::VECCALC, 69632, 1536);
+    LocalTensor<float> converted(TPosition::VECCALC, 75776, 1536);
+    LocalTensor<float> dist(TPosition::VECCALC, 81920, 512);
+    LocalTensor<int32_t> idx(TPosition::VECCALC, 83968, 512);
+    LocalTensor<T> narrow(TPosition::VECCALC, 86016, 512);
+    bool compact = true;
+    for (uint32_t done = 0; done < owned; done += 512) {
+        const uint32_t count = owned - done < 512 ? owned - done : 512;
         if (done != 0) Hop<HardEvent::MTE3_S>();
         DataCopyPad(raw, points[((uint64_t)batch * t.n + begin + done) * 3],
                     {1, (uint32_t)(count * 3 * sizeof(T)), 0, 0, 0}, {false, 0, 0, 0});
@@ -210,8 +69,25 @@ __aicore__ inline bool PlanarRun(const GlobalTensor<T>& points,
         Hop<HardEvent::MTE2_V>();
         if constexpr (sizeof(T) == 2) { Cast(converted, raw, RoundMode::CAST_NONE, count * 3); source = converted; }
         Hop<HardEvent::S_V>();
-        PlanarCandidates(source, coordinates, heads, next, inverse, axes[0], axes[1],
-                         origin, scale, radius, side, depth, count, dist, idx);
+        if constexpr (sizeof(T) == 2) {
+            PlanarCandidates<true>(source, coordinates, directions, heads, next, inverse, axes[0], axes[1],
+                             origin, scale, radius, side, depth, count, dist, idx);
+        } else {
+            if (done == 0) {
+                compact = PlanarCandidates<false>(source, coordinates, directions, heads, next, inverse, axes[0], axes[1],
+                             origin, scale, radius, side, depth, count < 16 ? count : 16, dist, idx);
+                Hop<HardEvent::S_V>();
+            }
+            if (compact) {
+                compact = PlanarCandidates<false>(source, coordinates, directions, heads, next, inverse, axes[0], axes[1],
+                             origin, scale, radius, side, depth, count, dist, idx);
+            }
+            if (!compact) {
+                Hop<HardEvent::S_V>();
+                PlanarCandidates<true>(source, coordinates, directions, heads, next, inverse, axes[0], axes[1],
+                             origin, scale, radius, side, depth, count, dist, idx);
+            }
+        }
         Hop<HardEvent::S_V>();
         Sqrt(dist, dist, count);
         const uint64_t output = (uint64_t)batch * t.n + begin + done;
