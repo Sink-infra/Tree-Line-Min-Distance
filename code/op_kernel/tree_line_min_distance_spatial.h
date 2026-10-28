@@ -2,11 +2,11 @@
 
 namespace TreeDistanceSpatial {
 
-__aicore__ inline bool PreferDenseSample(const LocalTensor<float>& coordinates,
+__aicore__ inline uint32_t PreferDenseSample(const LocalTensor<float>& coordinates,
                                         uint32_t segments)
 {
     const uint32_t samples = segments < 16 ? segments : 16;
-    if (samples < 2) return false;
+    if (samples < 2) return 0;
     float low[3] = {kGuardDist, kGuardDist, kGuardDist};
     float high[3] = {-kGuardDist, -kGuardDist, -kGuardDist};
     float width[3] = {0.0f, 0.0f, 0.0f};
@@ -26,14 +26,28 @@ __aicore__ inline bool PreferDenseSample(const LocalTensor<float>& coordinates,
     if (high[1] - low[1] > high[axis] - low[axis]) axis = 1;
     if (high[2] - low[2] > high[axis] - low[axis]) axis = 2;
     const float extent = high[axis] - low[axis];
-    if (!(extent > 0.0f && extent < 3.0e30f)) return true;
-    return width[axis] * (float)(int32_t)(segments - 1) >
-           32.0f * (float)(int32_t)samples * extent;
+    if (!(extent > 0.0f && extent < 3.0e30f)) return 2;
+    if (!(width[axis] * (float)(int32_t)(segments - 1) >
+          32.0f * (float)(int32_t)samples * extent)) return 0;
+    const float margin = 0.25f * (float)(int32_t)samples;
+    if (width[0] > margin * (high[0] - low[0]) &&
+        width[1] > margin * (high[1] - low[1]) &&
+        width[2] > margin * (high[2] - low[2])) return 2;
+    return 1;
 }
 
 __aicore__ inline uint32_t Cell(float x, float low, float scale, uint32_t cells)
 {
     const float position = (x - low) * scale;
+    if (!(position > 0.0f)) return 0;
+    if (position >= (float)(int32_t)(cells - 1)) return cells - 1;
+    return (uint32_t)(int32_t)position;
+}
+
+// Endpoint bounds certify all candidates omitted by these bins.
+__aicore__ inline uint32_t RoundedSegmentCell(float x, float low, float scale, uint32_t cells)
+{
+    const float position = (x - low) * scale + 0.5f;
     if (!(position > 0.0f)) return 0;
     if (position >= (float)(int32_t)(cells - 1)) return cells - 1;
     return (uint32_t)(int32_t)position;
@@ -67,6 +81,7 @@ __aicore__ inline void Visit(uint32_t cell, const LocalTensor<int32_t>& heads,
     }
 }
 
+#include "tree_line_min_distance_spatial_prepare.h"
 #include "tree_line_min_distance_spatial_vector.h"
 #include "tree_line_min_distance_spatial_bounds.h"
 
@@ -115,12 +130,19 @@ __aicore__ inline bool Run(GM_ADDR p, GM_ADDR s, GM_ADDR d, GM_ADDR i,
     }
 
     if constexpr (VECTOR) {
-        if (PreferDenseSample(coordinates, t.m))
+        const uint32_t route = PreferDenseSample(coordinates, t.m);
+        if (route == 2) return false;
+        if (route == 1)
             return PlanarRun(points, distances, indices, coordinates, t, batch, begin, owned);
     }
 
+    if constexpr (VECTOR) ICachePreLoad(7);
     float low[3] = {kGuardDist, kGuardDist, kGuardDist};
     float high[3] = {-kGuardDist, -kGuardDist, -kGuardDist};
+    if constexpr (VECTOR) {
+        float widths[3];
+        PrepareGeometry(coordinates, inverse, t.m, low, high, widths);
+    } else {
     for (uint32_t j = 0; j < t.m; ++j) {
         for (uint32_t axis = 0; axis < 3; ++axis) {
             const float middle = coordinates.GetValue(6 * j + axis) * 0.5f +
@@ -128,6 +150,7 @@ __aicore__ inline bool Run(GM_ADDR p, GM_ADDR s, GM_ADDR d, GM_ADDR i,
             low[axis] = middle < low[axis] ? middle : low[axis];
             high[axis] = middle > high[axis] ? middle : high[axis];
         }
+    }
     }
     uint32_t axis = 0;
     if (high[1] - low[1] > high[axis] - low[axis]) axis = 1;
@@ -149,18 +172,20 @@ __aicore__ inline bool Run(GM_ADDR p, GM_ADDR s, GM_ADDR d, GM_ADDR i,
         const float a = coordinates.GetValue(offset + axis);
         const float c = coordinates.GetValue(offset + axis + 3);
         const float left = a < c ? a : c, right = a > c ? a : c;
-        const uint32_t cell = Cell(a * 0.5f + c * 0.5f, low[axis], scale, cells);
+        const uint32_t cell = VECTOR ? RoundedSegmentCell(a * 0.5f + c * 0.5f, low[axis], scale, cells)
+                                     : Cell(a * 0.5f + c * 0.5f, low[axis], scale, cells);
         const int32_t previousHead = heads.GetValue(cell);
         next.SetValue(j, previousHead);
         heads.SetValue(cell, (int32_t)j);
         if constexpr (VECTOR) {
-            if (maxCandidates < 4 && previousHead >= 0) {
+            if (previousHead >= 0) {
                 uint32_t depth = 1;
                 int32_t previous = previousHead;
-                while (previous >= 0 && depth < 4) {
+                while (previous >= 0 && depth <= 4) {
                     ++depth;
                     previous = next.GetValue(previous);
                 }
+                if (depth > 4) return false;
                 maxCandidates = depth > maxCandidates ? depth : maxCandidates;
             }
         }
@@ -169,6 +194,11 @@ __aicore__ inline bool Run(GM_ADDR p, GM_ADDR s, GM_ADDR d, GM_ADDR i,
         prefixHigh.SetValue(cell, right > oldHigh ? right : oldHigh);
         suffixLow.SetValue(cell, left < oldLow ? left : oldLow);
         widths += right - left;
+        if constexpr (VECTOR) {
+            coordinates.SetValue(offset + 3, PreparedDirection(0).GetValue(j));
+            coordinates.SetValue(offset + 4, PreparedDirection(1).GetValue(j));
+            coordinates.SetValue(offset + 5, PreparedDirection(2).GetValue(j));
+        } else {
         const float ux = coordinates.GetValue(offset + 3) - coordinates.GetValue(offset);
         const float uy = coordinates.GetValue(offset + 4) - coordinates.GetValue(offset + 1);
         const float uz = coordinates.GetValue(offset + 5) - coordinates.GetValue(offset + 2);
@@ -177,6 +207,7 @@ __aicore__ inline bool Run(GM_ADDR p, GM_ADDR s, GM_ADDR d, GM_ADDR i,
         coordinates.SetValue(offset + 3, ux);
         coordinates.SetValue(offset + 4, uy);
         coordinates.SetValue(offset + 5, uz);
+        }
     }
     if (widths * scale > 8.0f * (float)(int32_t)t.m) return false;
     bool ordered = false;
