@@ -1,6 +1,6 @@
 #pragma once
 
-template <typename T, uint32_t SEG, bool LATE = false, bool DIRECT = false>
+template <typename T, uint32_t SEG, bool LATE = false, bool DIRECT = false, bool ROOT = false>
 __aicore__ inline void SinglePoint(GM_ADDR p, GM_ADDR s, GM_ADDR d, GM_ADDR i)
 {
     GlobalTensor<T> points, segments, distances;
@@ -14,6 +14,13 @@ __aicore__ inline void SinglePoint(GM_ADDR p, GM_ADDR s, GM_ADDR d, GM_ADDR i)
     LocalTensor<float> dist(TPosition::VECCALC, 128, 8);
     LocalTensor<int32_t> idx(TPosition::VECCALC, 160, 8);
     LocalTensor<T> narrow(TPosition::VECCALC, 192, 16);
+    if constexpr (ROOT) {
+        GlobalTensor<uint64_t> outputD, outputI;
+        outputD.SetGlobalBuffer((__gm__ uint64_t*)(d));
+        outputI.SetGlobalBuffer((__gm__ uint64_t*)(i));
+        DataCachePreload(outputD, (int64_t)0);
+        DataCachePreload(outputI, (int64_t)0);
+    }
     if constexpr (DIRECT) {
         RefreshSource(points, 0, 3);
         RefreshSource(segments, 0, SEG * 6);
@@ -47,6 +54,11 @@ __aicore__ inline void SinglePoint(GM_ADDR p, GM_ADDR s, GM_ADDR d, GM_ADDR i)
         const float value = dx * dx + dy * dy + dz * dz;
         if (j == 0 || value < best) { best = value; winner = (int32_t)j; }
     }
+    if constexpr (ROOT) {
+        distances.SetValue(0, (T)TinyRoot(best));
+        indices.SetValue(0, winner);
+        return;
+    }
     dist.SetValue(0, best);
     idx.SetValue(0, winner);
     Hop<HardEvent::S_V>();
@@ -62,7 +74,7 @@ __aicore__ inline void SinglePoint(GM_ADDR p, GM_ADDR s, GM_ADDR d, GM_ADDR i)
     DataCopyPad(indices, idx, {1, 4, 0, 0, 0});
 }
 
-template <typename T, uint32_t POINTS, uint32_t SEGS, bool LATE = false, bool DIRECT = false>
+template <typename T, uint32_t POINTS, uint32_t SEGS, bool LATE = false, bool DIRECT = false, bool ROOT = false>
 __aicore__ inline void FixedSmallBatch(GM_ADDR p, GM_ADDR s, GM_ADDR d, GM_ADDR i)
 {
     if constexpr (!LATE && SEGS == 2) ICachePreLoad(2);
@@ -80,6 +92,13 @@ __aicore__ inline void FixedSmallBatch(GM_ADDR p, GM_ADDR s, GM_ADDR d, GM_ADDR 
     LocalTensor<float> dist(TPosition::VECCALC, 384, 8);
     LocalTensor<int32_t> idx(TPosition::VECCALC, 416, 8);
     LocalTensor<T> narrow(TPosition::VECCALC, 448, 16);
+    if constexpr (ROOT) {
+        GlobalTensor<uint64_t> outputD, outputI;
+        outputD.SetGlobalBuffer((__gm__ uint64_t*)((__gm__ T*)d + (uint64_t)batch * n));
+        outputI.SetGlobalBuffer((__gm__ uint64_t*)((__gm__ int32_t*)i + (uint64_t)batch * n));
+        DataCachePreload(outputD, (int64_t)0);
+        DataCachePreload(outputI, (int64_t)0);
+    }
     if constexpr (DIRECT) {
         RefreshSource(points, (uint64_t)batch * n * 3, n * 3);
         RefreshSource(segments, (uint64_t)batch * segCount * 6, segCount * 6);
@@ -116,8 +135,15 @@ __aicore__ inline void FixedSmallBatch(GM_ADDR p, GM_ADDR s, GM_ADDR d, GM_ADDR 
             const float value = dx * dx + dy * dy + dz * dz;
             if (j == 0 || value < best) { best = value; winner = (int32_t)j; }
         }
-        dist.SetValue(point, best); idx.SetValue(point, winner);
+        if constexpr (ROOT) {
+            distances.SetValue((uint64_t)batch * n + point, (T)TinyRoot(best));
+            indices.SetValue((uint64_t)batch * n + point, winner);
+        } else {
+            dist.SetValue(point, best);
+            idx.SetValue(point, winner);
+        }
     }
+    if constexpr (ROOT) return;
     Hop<HardEvent::S_V>();
     Sqrt(dist, dist, n);
     if constexpr (sizeof(T) == 2) {
