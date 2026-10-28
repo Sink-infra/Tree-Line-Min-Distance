@@ -1,6 +1,6 @@
 #pragma once
 
-template <typename T, uint32_t SEG, bool LATE = false, bool DIRECT = false, bool ROOT = false>
+template <typename T, uint32_t SEG, bool LATE = false, bool DIRECT = false, bool ROOT = false, bool TWO_STEPS = false>
 __aicore__ inline void SinglePoint(GM_ADDR p, GM_ADDR s, GM_ADDR d, GM_ADDR i)
 {
     GlobalTensor<T> points, segments, distances;
@@ -55,7 +55,7 @@ __aicore__ inline void SinglePoint(GM_ADDR p, GM_ADDR s, GM_ADDR d, GM_ADDR i)
         if (j == 0 || value < best) { best = value; winner = (int32_t)j; }
     }
     if constexpr (ROOT) {
-        distances.SetValue(0, (T)TinyRoot(best));
+        distances.SetValue(0, (T)(TWO_STEPS ? TinyRootTwoSteps(best) : TinyRoot(best)));
         indices.SetValue(0, winner);
         return;
     }
