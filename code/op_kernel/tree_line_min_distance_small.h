@@ -1,4 +1,5 @@
 #pragma once
+#include "tree_line_min_distance_tiny_geometry.h"
 
 template <typename T, uint32_t SEG, bool LATE = false, bool DIRECT = false, bool ROOT = false, bool TWO_STEPS = false, uint32_t PRELOAD = 2>
 __aicore__ inline void SinglePoint(GM_ADDR p, GM_ADDR s, GM_ADDR d, GM_ADDR i)
@@ -39,6 +40,11 @@ __aicore__ inline void SinglePoint(GM_ADDR p, GM_ADDR s, GM_ADDR d, GM_ADDR i)
         const float ax = (float)(DIRECT ? segments.GetValue(6 * j) : seg.GetValue(6 * j));
         const float ay = (float)(DIRECT ? segments.GetValue(6 * j + 1) : seg.GetValue(6 * j + 1));
         const float az = (float)(DIRECT ? segments.GetValue(6 * j + 2) : seg.GetValue(6 * j + 2));
+        float value;
+        if constexpr (ROOT && SEG >= 3) {
+            const float bx=(float)(DIRECT ? segments.GetValue(6 * j + 3) : seg.GetValue(6 * j + 3)),by=(float)(DIRECT ? segments.GetValue(6 * j + 4) : seg.GetValue(6 * j + 4)),bz=(float)(DIRECT ? segments.GetValue(6 * j + 5) : seg.GetValue(6 * j + 5));
+            value=TinyGeometryDsq(px,py,pz,ax,ay,az,bx,by,bz);
+        } else {
         const float ux = (float)(DIRECT ? segments.GetValue(6 * j + 3) : seg.GetValue(6 * j + 3)) - ax;
         const float uy = (float)(DIRECT ? segments.GetValue(6 * j + 4) : seg.GetValue(6 * j + 4)) - ay;
         const float uz = (float)(DIRECT ? segments.GetValue(6 * j + 5) : seg.GetValue(6 * j + 5)) - az;
@@ -51,7 +57,8 @@ __aicore__ inline void SinglePoint(GM_ADDR p, GM_ADDR s, GM_ADDR d, GM_ADDR i)
             dy -= ratio * uy;
             dz -= ratio * uz;
         }
-        const float value = dx * dx + dy * dy + dz * dz;
+        value = dx * dx + dy * dy + dz * dz;
+        }
         if (j == 0 || value < best) { best = value; winner = (int32_t)j; }
     }
     if constexpr (ROOT) {

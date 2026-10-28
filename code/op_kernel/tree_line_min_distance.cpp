@@ -64,6 +64,7 @@ __aicore__ inline void Hop()
 
 #include "tree_line_min_distance_spatial.h"
 #include "tree_line_min_distance_dense_points.h"
+#include "tree_line_min_distance_dense_native_index.h"
 
 #include "tree_line_min_distance_segment_lanes.h"
 
@@ -85,7 +86,7 @@ __global__ __aicore__ void tree_line_min_distance(GM_ADDR tree_points, GM_ADDR l
     REGISTER_TILING_DEFAULT(TreeLineMinDistanceTilingData);
     if constexpr (PATH >= 244 && PATH <= 249) {
         InitSocState();
-        SinglePoint<DT_TREE_POINTS, PATH - 241, true, false, true, false, 1>(
+        SinglePoint<DT_TREE_POINTS, PATH - 241, true, false, true, false, 2>(
             tree_points,line_segments,min_distance,nearest_segment_idx);
         return;
     }
@@ -118,7 +119,7 @@ __global__ __aicore__ void tree_line_min_distance(GM_ADDR tree_points, GM_ADDR l
         PATH == 156) {
         InitSocState();
     }
-    if constexpr (PATH == 157 || PATH == 158 || PATH == 159) {
+    if constexpr (PATH == 157 || PATH == 158 || PATH == 159 || PATH == 250) {
         GET_TILING_DATA_WITH_STRUCT(TreeLineMinDistanceTilingData, spatialTiling, tiling);
         {
             TPipe candidatePipe;
@@ -136,8 +137,10 @@ __global__ __aicore__ void tree_line_min_distance(GM_ADDR tree_points, GM_ADDR l
         } else {
             TBuf<TPosition::VECCALC> denseStorage;
             pipe.InitBuffer(denseStorage, 188416);
-            DensePointTask<DT_TREE_POINTS>(tree_points, line_segments,
-                min_distance, nearest_segment_idx, spatialTiling);
+            if constexpr(PATH==250)
+                DensePointNativeIndexTask<DT_TREE_POINTS>(tree_points,line_segments,min_distance,nearest_segment_idx,spatialTiling);
+            else
+                DensePointTask<DT_TREE_POINTS>(tree_points,line_segments,min_distance,nearest_segment_idx,spatialTiling);
         }
         return;
     }
