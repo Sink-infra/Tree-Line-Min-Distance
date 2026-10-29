@@ -65,6 +65,7 @@ __aicore__ inline void Hop()
 #include "tree_line_min_distance_spatial.h"
 #include "tree_line_min_distance_dense_points.h"
 #include "tree_line_min_distance_dense_native_index.h"
+#include "tree_line_min_distance_dense_basis.h"
 
 #include "tree_line_min_distance_segment_lanes.h"
 
@@ -137,8 +138,12 @@ __global__ __aicore__ void tree_line_min_distance(GM_ADDR tree_points, GM_ADDR l
         } else {
             TBuf<TPosition::VECCALC> denseStorage;
             pipe.InitBuffer(denseStorage, 188416);
-            if constexpr(PATH==250)
-                DensePointNativeIndexTask<DT_TREE_POINTS>(tree_points,line_segments,min_distance,nearest_segment_idx,spatialTiling);
+            if constexpr(PATH==250) {
+                if constexpr(sizeof(DT_TREE_POINTS)==4)
+                    DensePointBasisTask<DT_TREE_POINTS>(tree_points,line_segments,min_distance,nearest_segment_idx,spatialTiling);
+                else
+                    DensePointNativeIndexTask<DT_TREE_POINTS>(tree_points,line_segments,min_distance,nearest_segment_idx,spatialTiling);
+            }
             else
                 DensePointTask<DT_TREE_POINTS>(tree_points,line_segments,min_distance,nearest_segment_idx,spatialTiling);
         }
