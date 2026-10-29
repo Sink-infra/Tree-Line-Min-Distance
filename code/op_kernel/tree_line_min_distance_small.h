@@ -1,7 +1,6 @@
 #pragma once
-#include "tree_line_min_distance_tiny_geometry.h"
 
-template <typename T, uint32_t SEG, bool LATE = false, bool DIRECT = false, bool ROOT = false, bool TWO_STEPS = false, uint32_t PRELOAD = 2>
+template <typename T, uint32_t SEG, bool LATE = false, bool DIRECT = false, bool ROOT = false, bool TWO_STEPS = false>
 __aicore__ inline void SinglePoint(GM_ADDR p, GM_ADDR s, GM_ADDR d, GM_ADDR i)
 {
     GlobalTensor<T> points, segments, distances;
@@ -28,7 +27,7 @@ __aicore__ inline void SinglePoint(GM_ADDR p, GM_ADDR s, GM_ADDR d, GM_ADDR i)
     } else {
     DataCopyPad(pt, points, {1, (uint32_t)(3 * sizeof(T)), 0, 0, 0}, {false, 0, 0, 0});
     DataCopyPad(seg, segments, {1, (uint32_t)(SEG * 6 * sizeof(T)), 0, 0, 0}, {false, 0, 0, 0});
-    if constexpr (LATE) ICachePreLoad(PRELOAD);
+    if constexpr (LATE) ICachePreLoad(2);
     Hop<HardEvent::MTE2_S>();
     }
     const float px = (float)(DIRECT ? points.GetValue(0) : pt.GetValue(0));
@@ -40,11 +39,6 @@ __aicore__ inline void SinglePoint(GM_ADDR p, GM_ADDR s, GM_ADDR d, GM_ADDR i)
         const float ax = (float)(DIRECT ? segments.GetValue(6 * j) : seg.GetValue(6 * j));
         const float ay = (float)(DIRECT ? segments.GetValue(6 * j + 1) : seg.GetValue(6 * j + 1));
         const float az = (float)(DIRECT ? segments.GetValue(6 * j + 2) : seg.GetValue(6 * j + 2));
-        float value;
-        if constexpr (ROOT && SEG >= 3) {
-            const float bx=(float)(DIRECT ? segments.GetValue(6 * j + 3) : seg.GetValue(6 * j + 3)),by=(float)(DIRECT ? segments.GetValue(6 * j + 4) : seg.GetValue(6 * j + 4)),bz=(float)(DIRECT ? segments.GetValue(6 * j + 5) : seg.GetValue(6 * j + 5));
-            value=TinyGeometryDsq(px,py,pz,ax,ay,az,bx,by,bz);
-        } else {
         const float ux = (float)(DIRECT ? segments.GetValue(6 * j + 3) : seg.GetValue(6 * j + 3)) - ax;
         const float uy = (float)(DIRECT ? segments.GetValue(6 * j + 4) : seg.GetValue(6 * j + 4)) - ay;
         const float uz = (float)(DIRECT ? segments.GetValue(6 * j + 5) : seg.GetValue(6 * j + 5)) - az;
@@ -57,12 +51,11 @@ __aicore__ inline void SinglePoint(GM_ADDR p, GM_ADDR s, GM_ADDR d, GM_ADDR i)
             dy -= ratio * uy;
             dz -= ratio * uz;
         }
-        value = dx * dx + dy * dy + dz * dz;
-        }
+        const float value = dx * dx + dy * dy + dz * dz;
         if (j == 0 || value < best) { best = value; winner = (int32_t)j; }
     }
     if constexpr (ROOT) {
-        distances.SetValue(0, (T)(TWO_STEPS ? TinyRootTwoSteps(best) : (SEG == 1 && sizeof(T)==2 ? TinyRootResidual(best) : TinyRoot(best))));
+        distances.SetValue(0, (T)(TWO_STEPS ? TinyRootTwoSteps(best) : TinyRoot(best)));
         indices.SetValue(0, winner);
         return;
     }
