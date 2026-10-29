@@ -139,8 +139,12 @@ __global__ __aicore__ void tree_line_min_distance(GM_ADDR tree_points, GM_ADDR l
             TBuf<TPosition::VECCALC> denseStorage;
             pipe.InitBuffer(denseStorage, 188416);
             if constexpr(PATH==250) {
-                if constexpr(sizeof(DT_TREE_POINTS)==4)
-                    DensePointBasisTask<DT_TREE_POINTS>(tree_points,line_segments,min_distance,nearest_segment_idx,spatialTiling);
+                if constexpr(sizeof(DT_TREE_POINTS)==4) {
+                    if(!DensePointBasisTask<DT_TREE_POINTS>(tree_points,line_segments,min_distance,nearest_segment_idx,spatialTiling)) {
+                        PipeBarrier<PIPE_ALL>();
+                        DensePointNativeIndexTask<DT_TREE_POINTS>(tree_points,line_segments,min_distance,nearest_segment_idx,spatialTiling);
+                    }
+                }
                 else
                     DensePointNativeIndexTask<DT_TREE_POINTS>(tree_points,line_segments,min_distance,nearest_segment_idx,spatialTiling);
             }

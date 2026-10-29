@@ -95,7 +95,45 @@ __aicore__ inline void VerifyInfiniteNative(
 
 
 template <typename T>
-__aicore__ inline void DensePointBasisTask(GM_ADDR p, GM_ADDR s, GM_ADDR d, GM_ADDR i,
+__aicore__ inline bool PreferBasisTask(const GlobalTensor<T>& points,uint64_t base,uint32_t n,uint32_t m,
+ LocalTensor<float> ax,LocalTensor<float> ay,LocalTensor<float> az,
+ LocalTensor<float> kx,LocalTensor<float> ky,LocalTensor<float> kz,
+ LocalTensor<float> vx,LocalTensor<float> vy,LocalTensor<float> wx,LocalTensor<float> wy,LocalTensor<float> wz,
+ LocalTensor<float> cv,LocalTensor<float> cw,LocalTensor<float> zero,
+ LocalTensor<float> dx,LocalTensor<float> dy)
+{
+ LocalTensor<T> raw(TPosition::VECCALC,76800,32*32/sizeof(T));
+ Hop<HardEvent::V_MTE2>();
+ DataCopyPad(raw,points[base*3],{32,3u*(uint32_t)sizeof(T),(n/32-1)*3u*(uint32_t)sizeof(T),0,0},{false,0,0,0});
+ Hop<HardEvent::MTE2_S>();
+ auto fx=dx,fy=dx[1024],temp=dx[2048];
+ auto score=dy,pair=dy[1024],work=dy[2048];
+ uint32_t bad=0;
+ for(uint32_t q=0;q<32;++q){
+  const float x=(float)raw.GetValue(q*(32/sizeof(T)));
+  const float y=(float)raw.GetValue(q*(32/sizeof(T))+1);
+  const float z=(float)raw.GetValue(q*(32/sizeof(T))+2);
+  Muls(fx,vx,-x,m);Axpy(fx,vy,-y,m);Add(fx,fx,cv,m);
+  Muls(fy,wx,-x,m);Axpy(fy,wy,-y,m);Axpy(fy,wz,-z,m);Add(fy,fy,cw,m);
+  Mul(score,fx,fx,m);MulAddDst(score,fy,fy,m);
+  Adds(temp,az,-z,m);Mul(temp,temp,temp,m);Mul(temp,temp,zero,m);Add(score,score,temp,m);
+  ReduceMin(pair,score,work,m,true);
+  Hop<HardEvent::V_S>();
+  const int32_t j=pair.ReinterpretCast<int32_t>().GetValue(1);
+  const float value=pair.GetValue(0);
+  if(j<0 || (uint32_t)j>=m || !(value>=0.0f)){Hop<HardEvent::S_V>();return false;}
+  const float t=(ax.GetValue(j)-x)*kx.GetValue(j)+(ay.GetValue(j)-y)*ky.GetValue(j)+(az.GetValue(j)-z)*kz.GetValue(j);
+  const float epsilon=1.0e-12f*(x*x+y*y+z*z)+1.0e-20f;
+  if(!(t>1.0e-5f && t<0.99999f) || value<=epsilon)++bad;
+  Hop<HardEvent::S_V>();
+  if(bad>2)return false;
+ }
+ return true;
+}
+
+
+template <typename T>
+__aicore__ inline bool DensePointBasisTask(GM_ADDR p, GM_ADDR s, GM_ADDR d, GM_ADDR i,
                                     const TreeLineMinDistanceTilingData& t)
 {
     constexpr uint32_t tile = 3328;
@@ -193,6 +231,7 @@ __aicore__ inline void DensePointBasisTask(GM_ADDR p, GM_ADDR s, GM_ADDR d, GM_A
             Hop<HardEvent::V_S>();
             MakeLineBasis(t.m,ax,ay,az,ux,uy,uz,vx,vy,wx,wy,wz,cv,cw,zero);
             Hop<HardEvent::S_V>();
+            if(done==0 && !PreferBasisTask(points,(uint64_t)batch*t.n,t.n,t.m,ax,ay,az,kx,ky,kz,vx,vy,wx,wy,wz,cv,cw,zero,dx,dy)) return false;
             CreateVecIndex(dx,0.0f,tile);
             Muls(dx,dx,12.0f,tile);
             Cast(pointOffsets,dx,RoundMode::CAST_RINT,tile);
@@ -284,4 +323,5 @@ __aicore__ inline void DensePointBasisTask(GM_ADDR p, GM_ADDR s, GM_ADDR d, GM_A
             stored = true;
         }
     }
+    return true;
 }
