@@ -154,8 +154,12 @@ static ge::graphStatus TilingFunc(gert::TilingContext *context) {
     if (b * n == 1 && m == 1) PATH = 2;
     if (b * n == 1 && m == 2 && dtype == ge::DT_FLOAT16) PATH = 241;
     if (b * n == 1 && m >= 3 && m <= 8) PATH = 117 + m;
+    if(PATH==159 && t->chunkPoints>=2048 && t->chunkPoints<=3328 &&
+        b*t->chunks<=cores) PATH=242;
     ASCENDC_TPL_SEL_PARAM(context,DT_TREE_POINTS,PATH);
-    context->GetWorkspaceSizes(1)[0]=0;
+    const bool shared=PATH==242;
+    context->GetWorkspaceSizes(1)[0]=shared?(uint64_t)b*(512*9216+36864)+platform.GetLibApiWorkSpaceSize():0;
+    if(context->SetScheduleMode(shared?1:0)!=ge::GRAPH_SUCCESS) return ge::GRAPH_FAILED;
     return ge::GRAPH_SUCCESS;
 }
 IMPL_OP_OPTILING(TreeLineMinDistance).Tiling(TilingFunc);
