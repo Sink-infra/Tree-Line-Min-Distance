@@ -1,40 +1,41 @@
 #pragma once
+#include "tree_line_min_distance_hoist_layout.h"
 
-template <typename T, uint32_t MODE, bool LARGE = false, bool SHORT = false, bool WIDE = false, bool SPLIT = false, bool BANK = false, bool STRIDED = false, bool AXIS = false>
+template <typename T, uint32_t MODE, bool LARGE = false, bool SHORT = false, bool WIDE = false, bool SPLIT = false, bool BANK = false, bool STRIDED = false, bool AXIS = false, bool HOIST = false>
 class KernelPointGroups {
-    static constexpr uint32_t oDx = (WIDE && BANK && !STRIDED) ? 9280 : STRIDED ? 9216 : WIDE ? 9224 : LARGE ? 9224 : ::oDx;
-    static constexpr uint32_t oDy = (WIDE && BANK && !STRIDED) ? 17472 : STRIDED ? 17472 : WIDE ? (BANK ? 17480 : 17424) : LARGE ? 15376 : ::oDy;
-    static constexpr uint32_t oDz = (WIDE && BANK && !STRIDED) ? 25664 : STRIDED ? 25664 : WIDE ? (BANK ? 25672 : 25624) : LARGE ? 21528 : ::oDz;
-    static constexpr uint32_t oTt = (WIDE && BANK && !STRIDED) ? 33952 : STRIDED ? 33824 : WIDE ? (BANK ? 33864 : 33824) : LARGE ? 27680 : ::oTt;
-    static constexpr uint32_t oDsq = (WIDE && BANK && !STRIDED) ? 9280 : STRIDED ? 9216 : WIDE ? 9224 : LARGE ? 9224 : ::oDsq;
+    static constexpr uint32_t oDx = HOIST ? HoistedPointGroupLayout::oDx : (WIDE && BANK && !STRIDED) ? 9280 : STRIDED ? 9216 : WIDE ? 9224 : LARGE ? 9224 : ::oDx;
+    static constexpr uint32_t oDy = HOIST ? HoistedPointGroupLayout::oDy : (WIDE && BANK && !STRIDED) ? 17472 : STRIDED ? 17472 : WIDE ? (BANK ? 17480 : 17424) : LARGE ? 15376 : ::oDy;
+    static constexpr uint32_t oDz = HOIST ? HoistedPointGroupLayout::oDz : (WIDE && BANK && !STRIDED) ? 25664 : STRIDED ? 25664 : WIDE ? (BANK ? 25672 : 25624) : LARGE ? 21528 : ::oDz;
+    static constexpr uint32_t oTt = HOIST ? HoistedPointGroupLayout::oTt : (WIDE && BANK && !STRIDED) ? 33952 : STRIDED ? 33824 : WIDE ? (BANK ? 33864 : 33824) : LARGE ? 27680 : ::oTt;
+    static constexpr uint32_t oDsq = HOIST ? HoistedPointGroupLayout::oDsq : (WIDE && BANK && !STRIDED) ? 9280 : STRIDED ? 9216 : WIDE ? 9224 : LARGE ? 9224 : ::oDsq;
     static constexpr uint32_t oSegRaw = LARGE ? 9224 : ::oSegRaw;
     static constexpr uint32_t oSegFlt = LARGE ? 15376 : ::oSegFlt;
     static constexpr uint32_t oNegOne = LARGE ? 21528 : ::oNegOne;
     static constexpr uint32_t oLen = LARGE ? 22552 : ::oLen;
     static constexpr uint32_t oInvLen = LARGE ? 23576 : ::oInvLen;
-    static constexpr uint32_t oSegOff = (WIDE && BANK && !STRIDED) ? 42144 : STRIDED ? 42048 : WIDE ? (BANK ? 42056 : 42016) : LARGE ? 33824 : ::oSegOff;
-    static constexpr uint32_t oPtRaw = (WIDE && BANK && !STRIDED) ? 43168 : STRIDED ? 43072 : WIDE ? (BANK ? 43080 : 43040) : LARGE ? 34848 : ::oPtRaw;
-    static constexpr uint32_t oPtFlt = (WIDE && BANK && !STRIDED) ? 43552 : STRIDED ? 43456 : WIDE ? (BANK ? 43464 : 43424) : LARGE ? 36384 : ::oPtFlt;
-    static constexpr uint32_t oPtOff = (WIDE && BANK && !STRIDED) ? 43936 : STRIDED ? 43840 : WIDE ? (BANK ? 43848 : 43808) : LARGE ? 37920 : ::oPtOff;
-    static constexpr uint32_t oDiv8 = (WIDE && BANK && !STRIDED) ? 44064 : STRIDED ? 43968 : WIDE ? (BANK ? 43976 : 43936) : LARGE ? 38432 : ::oDiv8;
-    static constexpr uint32_t oPx = (WIDE && BANK && !STRIDED) ? 44064 : STRIDED ? 43968 : WIDE ? (BANK ? 43976 : 43936) : LARGE ? 39200 : ::oPx;
-    static constexpr uint32_t oPy = (WIDE && BANK && !STRIDED) ? 44192 : STRIDED ? 44096 : WIDE ? (BANK ? 44104 : 44064) : LARGE ? 39328 : ::oPy;
-    static constexpr uint32_t oPz = (WIDE && BANK && !STRIDED) ? 44320 : STRIDED ? 44224 : WIDE ? (BANK ? 44232 : 44192) : LARGE ? 39456 : ::oPz;
-    static constexpr uint32_t oPxv = (WIDE && BANK && !STRIDED) ? 44448 : STRIDED ? 44352 : WIDE ? (BANK ? 44360 : 44320) : LARGE ? 39584 : ::oPxv;
-    static constexpr uint32_t oPyv = (WIDE && BANK && !STRIDED) ? 44448 : STRIDED ? 44864 : WIDE ? (BANK ? 44360 : 44320) : LARGE ? 40352 : ::oPyv;
-    static constexpr uint32_t oPzv = (WIDE && BANK && !STRIDED) ? 44448 : STRIDED ? 45376 : WIDE ? (BANK ? 44360 : 44320) : LARGE ? 41120 : ::oPzv;
-    static constexpr uint32_t oPair = (WIDE && BANK && !STRIDED) ? 45472 : STRIDED ? 45888 : WIDE ? (BANK ? 45384 : 45344) : LARGE ? 41888 : ::oPair;
-    static constexpr uint32_t oCmin = (WIDE && BANK && !STRIDED) ? 45728 : STRIDED ? 46144 : WIDE ? (BANK ? 45640 : 45600) : LARGE ? 42144 : ::oCmin;
-    static constexpr uint32_t oCidx = (WIDE && BANK && !STRIDED) ? 45856 : STRIDED ? 46272 : WIDE ? (BANK ? 45768 : 45728) : LARGE ? 42272 : ::oCidx;
-    static constexpr uint32_t oBest = (WIDE && BANK && !STRIDED) ? 45984 : STRIDED ? 46400 : WIDE ? (BANK ? 45896 : 45856) : LARGE ? 42400 : ::oBest;
-    static constexpr uint32_t oFidx = (WIDE && BANK && !STRIDED) ? 46112 : STRIDED ? 46528 : WIDE ? (BANK ? 46024 : 45984) : LARGE ? 42912 : ::oFidx;
-    static constexpr uint32_t oRes = (WIDE && BANK && !STRIDED) ? 46240 : STRIDED ? 46656 : WIDE ? (BANK ? 46152 : 46112) : LARGE ? 43424 : ::oRes;
-    static constexpr uint32_t oRedW = (WIDE && BANK && !STRIDED) ? 46240 : STRIDED ? 46656 : WIDE ? (BANK ? 46152 : 46112) : LARGE ? 44448 : ::oRedW;
-    static constexpr uint32_t oDist = (WIDE && BANK && !STRIDED) ? 46240 : STRIDED ? 46656 : WIDE ? (BANK ? 46152 : 46112) : LARGE ? 44960 : ::oDist;
-    static constexpr uint32_t oIdx = (WIDE && BANK && !STRIDED) ? 46368 : STRIDED ? 46784 : WIDE ? (BANK ? 46280 : 46240) : LARGE ? 45472 : ::oIdx;
-    static constexpr uint32_t oHalf = (WIDE && BANK && !STRIDED) ? 46496 : STRIDED ? 46912 : WIDE ? (BANK ? 46408 : 46368) : LARGE ? 45984 : ::oHalf;
-    static constexpr uint32_t oMask = (WIDE && BANK && !STRIDED) ? 46560 : STRIDED ? 46976 : WIDE ? (BANK ? 46472 : 46432) : LARGE ? 46240 : ::oMask;
-    static constexpr uint32_t oArena = (WIDE && BANK && !STRIDED) ? 46624 : STRIDED ? 47040 : WIDE ? (BANK ? 46536 : 46496) : LARGE ? 46304 : ::oArena;
+    static constexpr uint32_t oSegOff = HOIST ? HoistedPointGroupLayout::oSegOff : (WIDE && BANK && !STRIDED) ? 42144 : STRIDED ? 42048 : WIDE ? (BANK ? 42056 : 42016) : LARGE ? 33824 : ::oSegOff;
+    static constexpr uint32_t oPtRaw = HOIST ? HoistedPointGroupLayout::oPtRaw : (WIDE && BANK && !STRIDED) ? 43168 : STRIDED ? 43072 : WIDE ? (BANK ? 43080 : 43040) : LARGE ? 34848 : ::oPtRaw;
+    static constexpr uint32_t oPtFlt = HOIST ? HoistedPointGroupLayout::oPtFlt : (WIDE && BANK && !STRIDED) ? 43552 : STRIDED ? 43456 : WIDE ? (BANK ? 43464 : 43424) : LARGE ? 36384 : ::oPtFlt;
+    static constexpr uint32_t oPtOff = HOIST ? HoistedPointGroupLayout::oPtOff : (WIDE && BANK && !STRIDED) ? 43936 : STRIDED ? 43840 : WIDE ? (BANK ? 43848 : 43808) : LARGE ? 37920 : ::oPtOff;
+    static constexpr uint32_t oDiv8 = HOIST ? HoistedPointGroupLayout::oDiv8 : (WIDE && BANK && !STRIDED) ? 44064 : STRIDED ? 43968 : WIDE ? (BANK ? 43976 : 43936) : LARGE ? 38432 : ::oDiv8;
+    static constexpr uint32_t oPx = HOIST ? HoistedPointGroupLayout::oPx : (WIDE && BANK && !STRIDED) ? 44064 : STRIDED ? 43968 : WIDE ? (BANK ? 43976 : 43936) : LARGE ? 39200 : ::oPx;
+    static constexpr uint32_t oPy = HOIST ? HoistedPointGroupLayout::oPy : (WIDE && BANK && !STRIDED) ? 44192 : STRIDED ? 44096 : WIDE ? (BANK ? 44104 : 44064) : LARGE ? 39328 : ::oPy;
+    static constexpr uint32_t oPz = HOIST ? HoistedPointGroupLayout::oPz : (WIDE && BANK && !STRIDED) ? 44320 : STRIDED ? 44224 : WIDE ? (BANK ? 44232 : 44192) : LARGE ? 39456 : ::oPz;
+    static constexpr uint32_t oPxv = HOIST ? HoistedPointGroupLayout::oPxv : (WIDE && BANK && !STRIDED) ? 44448 : STRIDED ? 44352 : WIDE ? (BANK ? 44360 : 44320) : LARGE ? 39584 : ::oPxv;
+    static constexpr uint32_t oPyv = HOIST ? HoistedPointGroupLayout::oPyv : (WIDE && BANK && !STRIDED) ? 44448 : STRIDED ? 44864 : WIDE ? (BANK ? 44360 : 44320) : LARGE ? 40352 : ::oPyv;
+    static constexpr uint32_t oPzv = HOIST ? HoistedPointGroupLayout::oPzv : (WIDE && BANK && !STRIDED) ? 44448 : STRIDED ? 45376 : WIDE ? (BANK ? 44360 : 44320) : LARGE ? 41120 : ::oPzv;
+    static constexpr uint32_t oPair = HOIST ? HoistedPointGroupLayout::oPair : (WIDE && BANK && !STRIDED) ? 45472 : STRIDED ? 45888 : WIDE ? (BANK ? 45384 : 45344) : LARGE ? 41888 : ::oPair;
+    static constexpr uint32_t oCmin = HOIST ? HoistedPointGroupLayout::oCmin : (WIDE && BANK && !STRIDED) ? 45728 : STRIDED ? 46144 : WIDE ? (BANK ? 45640 : 45600) : LARGE ? 42144 : ::oCmin;
+    static constexpr uint32_t oCidx = HOIST ? HoistedPointGroupLayout::oCidx : (WIDE && BANK && !STRIDED) ? 45856 : STRIDED ? 46272 : WIDE ? (BANK ? 45768 : 45728) : LARGE ? 42272 : ::oCidx;
+    static constexpr uint32_t oBest = HOIST ? HoistedPointGroupLayout::oBest : (WIDE && BANK && !STRIDED) ? 45984 : STRIDED ? 46400 : WIDE ? (BANK ? 45896 : 45856) : LARGE ? 42400 : ::oBest;
+    static constexpr uint32_t oFidx = HOIST ? HoistedPointGroupLayout::oFidx : (WIDE && BANK && !STRIDED) ? 46112 : STRIDED ? 46528 : WIDE ? (BANK ? 46024 : 45984) : LARGE ? 42912 : ::oFidx;
+    static constexpr uint32_t oRes = HOIST ? HoistedPointGroupLayout::oRes : (WIDE && BANK && !STRIDED) ? 46240 : STRIDED ? 46656 : WIDE ? (BANK ? 46152 : 46112) : LARGE ? 43424 : ::oRes;
+    static constexpr uint32_t oRedW = HOIST ? HoistedPointGroupLayout::oRedW : (WIDE && BANK && !STRIDED) ? 46240 : STRIDED ? 46656 : WIDE ? (BANK ? 46152 : 46112) : LARGE ? 44448 : ::oRedW;
+    static constexpr uint32_t oDist = HOIST ? HoistedPointGroupLayout::oDist : (WIDE && BANK && !STRIDED) ? 46240 : STRIDED ? 46656 : WIDE ? (BANK ? 46152 : 46112) : LARGE ? 44960 : ::oDist;
+    static constexpr uint32_t oIdx = HOIST ? HoistedPointGroupLayout::oIdx : (WIDE && BANK && !STRIDED) ? 46368 : STRIDED ? 46784 : WIDE ? (BANK ? 46280 : 46240) : LARGE ? 45472 : ::oIdx;
+    static constexpr uint32_t oHalf = HOIST ? HoistedPointGroupLayout::oHalf : (WIDE && BANK && !STRIDED) ? 46496 : STRIDED ? 46912 : WIDE ? (BANK ? 46408 : 46368) : LARGE ? 45984 : ::oHalf;
+    static constexpr uint32_t oMask = HOIST ? HoistedPointGroupLayout::oMask : (WIDE && BANK && !STRIDED) ? 46560 : STRIDED ? 46976 : WIDE ? (BANK ? 46472 : 46432) : LARGE ? 46240 : ::oMask;
+    static constexpr uint32_t oArena = HOIST ? HoistedPointGroupLayout::oArena : (WIDE && BANK && !STRIDED) ? 46624 : STRIDED ? 47040 : WIDE ? (BANK ? 46536 : 46496) : LARGE ? 46304 : ::oArena;
     GlobalTensor<T> points, segments, distances;
     GlobalTensor<int32_t> indices;
     TBuf<TPosition::VECCALC> arenaBuf;
@@ -407,7 +408,7 @@ private:
             Gather(px, src, ptOff, base, span);
             Gather(py, src, ptOff, base + 4u, span);
             Gather(pz, src, ptOff, base + 8u, span);
-            if constexpr (!WIDE || STRIDED) {
+            if constexpr (!WIDE || STRIDED || HOIST) {
             Brcb(pxv, px, (uint8_t)((span + 7) / 8), {1, 8});
             Brcb(pyv, py, (uint8_t)((span + 7) / 8), {1, 8});
             Brcb(pzv, pz, (uint8_t)((span + 7) / 8), {1, 8});
@@ -420,17 +421,17 @@ private:
             for (uint32_t r = 0; r < (SHORT ? 1u : mRepeat); ++r) {
                 const uint32_t seg = r * kLanes;
                 SetVectorMask<float>((int32_t)kLanes);
-                if constexpr (WIDE && !STRIDED) {
+                if constexpr (WIDE && !STRIDED && !HOIST) {
                     PipeBarrier<PIPE_V>();
                     Brcb(pxv, px, (uint8_t)((span + 7) / 8), {1, 8});
                 }
                 Sub<float, false>(dx, ax[seg], pxv, MASK_PLACEHOLDER, reps, spread);
-                if constexpr (WIDE && !STRIDED) {
+                if constexpr (WIDE && !STRIDED && !HOIST) {
                     PipeBarrier<PIPE_V>();
                     Brcb(pxv, py, (uint8_t)((span + 7) / 8), {1, 8});
                 }
                 Sub<float, false>(dy, ay[seg], pyv, MASK_PLACEHOLDER, reps, spread);
-                if constexpr (WIDE && !STRIDED) {
+                if constexpr (WIDE && !STRIDED && !HOIST) {
                     PipeBarrier<PIPE_V>();
                     Brcb(pxv, pz, (uint8_t)((span + 7) / 8), {1, 8});
                 }

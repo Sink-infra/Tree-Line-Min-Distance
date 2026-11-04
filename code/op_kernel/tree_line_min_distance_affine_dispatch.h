@@ -13,8 +13,11 @@ __aicore__ inline void AffineOrFallback(GM_ADDR p, GM_ADDR s, GM_ADDR d, GM_ADDR
     PipeBarrier<PIPE_ALL>();
     TPipe pipe;
     if (t.chunkPoints < 384) {
-        KernelPointGroups<T, 3, true, false, true, true> op;
-        op.Init(p, s, d, i, t, &pipe);
+        auto grouped = t;
+        grouped.group = HoistedPointGroupLayout::kPoints;
+        grouped.tilePoints = HoistedPointGroupLayout::kPoints;
+        KernelPointGroups<T, 3, true, false, true, true, false, false, false, true> op;
+        op.Init(p, s, d, i, grouped, &pipe);
         op.Process();
     } else {
         KernelPointGroups<T, 3, true, false, true, true, false, false, true> op;

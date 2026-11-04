@@ -132,8 +132,11 @@ __global__ __aicore__ void tree_line_min_distance(GM_ADDR tree_points, GM_ADDR l
         PipeBarrier<PIPE_ALL>();
         TPipe pipe;
         if (spatialTiling.chunkPoints < 1536) {
-            KernelPointGroups<DT_TREE_POINTS, 3, true, false, true, true, true, false, true> op;
-            op.Init(tree_points, line_segments, min_distance, nearest_segment_idx, spatialTiling, &pipe);
+            auto blockedTiling = spatialTiling;
+            blockedTiling.group = HoistedPointGroupLayout::kPoints;
+            blockedTiling.tilePoints = HoistedPointGroupLayout::kPoints;
+            KernelPointGroups<DT_TREE_POINTS, 3, true, false, true, true, true, false, true, true> op;
+            op.Init(tree_points, line_segments, min_distance, nearest_segment_idx, blockedTiling, &pipe);
             op.Process();
         } else {
             TBuf<TPosition::VECCALC> denseStorage;
