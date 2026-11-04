@@ -71,13 +71,10 @@ __aicore__ inline void Hop()
 
 #include "tree_line_min_distance_scalar.h"
 
-#include "tree_line_min_distance_scalar_root.h"
 #include "tree_line_min_distance_small.h"
-#include "tree_line_min_distance_small_overlap.h"
 
 #include "tree_line_min_distance_single_axis.h"
 #include "tree_line_min_distance_affine.h"
-#include "tree_line_min_distance_affine_dispatch.h"
 #include "tree_line_min_distance_shared_grid.h"
 
 template <typename DT_TREE_POINTS, uint32_t PATH>
