@@ -76,6 +76,8 @@ __aicore__ inline void Hop()
 #include "tree_line_min_distance_small_overlap.h"
 
 #include "tree_line_min_distance_single_axis.h"
+#include "tree_line_min_distance_affine.h"
+#include "tree_line_min_distance_affine_dispatch.h"
 
 template <typename DT_TREE_POINTS, uint32_t PATH>
 __global__ __aicore__ void tree_line_min_distance(GM_ADDR tree_points, GM_ADDR line_segments,
@@ -83,6 +85,12 @@ __global__ __aicore__ void tree_line_min_distance(GM_ADDR tree_points, GM_ADDR l
                                                   GM_ADDR workspace, GM_ADDR tiling)
 {
     REGISTER_TILING_DEFAULT(TreeLineMinDistanceTilingData);
+    if constexpr (PATH == 251) {
+        GET_TILING_DATA_WITH_STRUCT(TreeLineMinDistanceTilingData, modelTiling, tiling);
+        AffineOrFallback<DT_TREE_POINTS>(tree_points, line_segments, min_distance,
+                                        nearest_segment_idx, modelTiling);
+        return;
+    }
     if constexpr (PATH == 241) {
         InitSocState();
         SinglePoint<DT_TREE_POINTS, 2, true, false, true, true>(
@@ -124,8 +132,11 @@ __global__ __aicore__ void tree_line_min_distance(GM_ADDR tree_points, GM_ADDR l
         PipeBarrier<PIPE_ALL>();
         TPipe pipe;
         if (spatialTiling.chunkPoints < 1536) {
-            KernelPointGroups<DT_TREE_POINTS, 3, true, false, true, true, true, false, true> op;
-            op.Init(tree_points, line_segments, min_distance, nearest_segment_idx, spatialTiling, &pipe);
+            auto blockedTiling = spatialTiling;
+            blockedTiling.group = HoistedPointGroupLayout::kPoints;
+            blockedTiling.tilePoints = HoistedPointGroupLayout::kPoints;
+            KernelPointGroups<DT_TREE_POINTS, 3, true, false, true, true, true, false, true, true> op;
+            op.Init(tree_points, line_segments, min_distance, nearest_segment_idx, blockedTiling, &pipe);
             op.Process();
         } else {
             TBuf<TPosition::VECCALC> denseStorage;
