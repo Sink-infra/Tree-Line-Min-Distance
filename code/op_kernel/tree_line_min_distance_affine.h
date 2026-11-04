@@ -8,6 +8,7 @@ __aicore__ inline LocalTensor<float> F(uint32_t byte, uint32_t count = kPointCap
 }
 
 // All point lanes retain their own original position; no scattered stores.
+template <bool EXTRA = false>
 __aicore__ inline void Evaluate(uint32_t count, uint32_t segments)
 {
     auto j = F(111872), high = F(112384), best = F(113920), winner = F(114432);
@@ -18,7 +19,13 @@ __aicore__ inline void Evaluate(uint32_t count, uint32_t segments)
     LocalTensor<int32_t> offsets(TPosition::VECCALC, 113408, kPointCap);
     LocalTensor<uint8_t> keep(TPosition::VECCALC, 121600, 256);
     LocalTensor<uint8_t> valid(TPosition::VECCALC, 121856, 32);
+    LocalTensor<uint8_t> equal(TPosition::VECCALC, 121888, 32);
     Compare(valid, j, high, CMPMODE::LE, count);
+    if constexpr (EXTRA) {
+        Compare(equal, j, F(112896), CMPMODE::GE, count);
+        And(valid.ReinterpretCast<uint16_t>(), valid.ReinterpretCast<uint16_t>(),
+            equal.ReinterpretCast<uint16_t>(), 16);
+    }
     Maxs(scratch, j, 0.0f, count); Mins(scratch, scratch, (float)(int32_t)(segments - 1), count);
     Muls(scratch, scratch, 4.0f, count);
     Cast(offsets, scratch, RoundMode::CAST_RINT, count);
@@ -39,8 +46,15 @@ __aicore__ inline void Evaluate(uint32_t count, uint32_t segments)
     Mul(value, cx, cx, count); MulAddDst(value, cy, cy, count); MulAddDst(value, cz, cz, count);
     Select(value, valid, value, kGuardDist, SELMODE::VSEL_TENSOR_SCALAR_MODE, count);
     Compare(keep, value, best, CMPMODE::GE, count);
+    if constexpr (EXTRA) {
+        Compare(equal, value, best, CMPMODE::EQ, count);
+        Min(F(121088), winner, j, count);
+        Select(scratch, keep, winner, j, SELMODE::VSEL_TENSOR_TENSOR_MODE, count);
+        Select(winner, equal, F(121088), scratch, SELMODE::VSEL_TENSOR_TENSOR_MODE, count);
+    } else {
+        Select(winner, keep, winner, j, SELMODE::VSEL_TENSOR_TENSOR_MODE, count);
+    }
     Min(best, best, value, count);
-    Select(winner, keep, winner, j, SELMODE::VSEL_TENSOR_TENSOR_MODE, count);
 }
 
 template <typename T>
@@ -67,9 +81,32 @@ __aicore__ inline bool Run(GM_ADDR p, GM_ADDR s, GM_ADDR d, GM_ADDR i,
         {1, (uint32_t)(t.m * 6 * sizeof(T)), 0, 0, 0}, {false, 0, 0, 0});
     CreateVecIndex(temp, 0.0f, wideM); Muls(temp, temp, 24.0f, wideM);
     Cast(segmentOffsets, temp, RoundMode::CAST_RINT, wideM);
-    Hop<HardEvent::MTE2_V>();
     LocalTensor<float> src = raw.template ReinterpretCast<float>();
-    if constexpr (sizeof(T) == 2) { src = converted; Cast(src, raw, RoundMode::CAST_NONE, t.m * 6); }
+    if constexpr (sizeof(T) == 2) {
+        Hop<HardEvent::MTE2_V>();
+        src = converted; Cast(src, raw, RoundMode::CAST_NONE, t.m * 6);
+        Hop<HardEvent::V_S>();
+    } else { Hop<HardEvent::MTE2_S>(); }
+    float sampledSpan = -1.0f, sampledWidth = 0.0f;
+    for (uint32_t axis = 0; axis < 3; ++axis) {
+        const float a = src.GetValue(axis), c = src.GetValue(axis + 3);
+        const uint32_t last = 6 * (prefix - 1) + axis;
+        const float e = src.GetValue(last), f = src.GetValue(last + 3);
+        const float firstDirection = c - a, lastDirection = f - e;
+        const float span = e + 0.5f * lastDirection - a - 0.5f * firstDirection;
+        const float magnitude = span < 0.0f ? -span : span;
+        if (magnitude > sampledSpan) {
+            sampledSpan = magnitude;
+            const float w0 = firstDirection < 0.0f ? -firstDirection : firstDirection;
+            const float w1 = lastDirection < 0.0f ? -lastDirection : lastDirection;
+            sampledWidth = w0 > w1 ? w0 : w1;
+        }
+    }
+    // A certified model spans at most sixteen index steps per segment.
+    // This loose sample rejection precedes all coefficient preparation.
+    if (!(sampledSpan > 0.0f) ||
+        sampledWidth * (float)(int32_t)(prefix - 1) > 32.0f * sampledSpan) return false;
+    Hop<HardEvent::MTE2_V>();
     auto absolute = sizeof(T) == 2 ? F(36864, 6144) : converted;
     Duplicate(absolute, 0.0f, AlignLanes(t.m * 6));
     Abs(absolute, src, t.m * 6);
@@ -160,11 +197,12 @@ __aicore__ inline bool Run(GM_ADDR p, GM_ADDR s, GM_ADDR d, GM_ADDR i,
         Muls(projection, F(110336 + axis * 512), sign, count);
         Adds(seed, projection, -origin - 0.5f * (lowerDelta + upperDelta), count);
         Muls(seed, seed, inverseStep, count);
+        Maxs(seed, seed, 0.0f, count); Mins(seed, seed, (float)(int32_t)(prefix - 1), count);
         Cast(integer, seed, RoundMode::CAST_RINT, count); Cast(seed, integer, RoundMode::CAST_NONE, count);
         Duplicate(best, kGuardDist, wide); Duplicate(winner, 0.0f, wide);
         Duplicate(jHigh, (float)(int32_t)(prefix - 1), wide);
-        // Seeds only establish an upper bound. The final search starts afresh
-        // in ascending index order, preserving exact smallest-index ties.
+        // Seed candidates form a contiguous interval and establish an upper bound.
+        // Additional candidates retain the smallest index explicitly on equal distances.
         for (int32_t shift = -2; shift <= 2; ++shift) {
             Adds(j, seed, (float)shift, count); Maxs(j, j, 0.0f, count);
             Mins(j, j, (float)(int32_t)(prefix - 1), count);
@@ -199,16 +237,18 @@ __aicore__ inline bool Run(GM_ADDR p, GM_ADDR s, GM_ADDR d, GM_ADDR i,
         ReduceMax(pair, value, temp, wide, false); Hop<HardEvent::V_S>();
         const float maximum = pair.GetValue(0);
         if (!(maximum > 0.0f && maximum <= 32.0f)) return false;
-        const uint32_t windows = (uint32_t)(int32_t)maximum;
-        Duplicate(best, kGuardDist, wide); Duplicate(winner, 0.0f, wide);
-        for (uint32_t r = 0; r < windows; ++r) {
-            Adds(j, jLow, (float)(int32_t)r, count); Evaluate(count, t.m);
+        Sub(value, seed, jLow, count); Adds(value, value, -2.0f, count);
+        Maxs(value, value, 0.0f, count); ReduceMax(pair, value, temp, wide, false);
+        Sub(value, jHigh, seed, count); Adds(value, value, -2.0f, count);
+        Maxs(value, value, 0.0f, count); ReduceMax(pair[8], value, temp, wide, false);
+        Hop<HardEvent::V_S>();
+        const uint32_t left = (uint32_t)(int32_t)pair.GetValue(0);
+        const uint32_t right = (uint32_t)(int32_t)pair.GetValue(8);
+        for (uint32_t r = 0; r < left; ++r) {
+            Adds(j, seed, -(float)(int32_t)(3 + r), count); Evaluate<true>(count, t.m);
         }
-        if (tail <= 8) {
-            Duplicate(jHigh, (float)(int32_t)(t.m - 1), wide);
-            for (uint32_t r = 0; r < tail; ++r) {
-                Duplicate(j, (float)(int32_t)(prefix + r), wide); Evaluate(count, t.m);
-            }
+        for (uint32_t r = 0; r < right; ++r) {
+            Adds(j, seed, (float)(int32_t)(3 + r), count); Evaluate<true>(count, t.m);
         }
         auto result = F(122112);
         LocalTensor<int32_t> resultIndex(TPosition::VECCALC, 122624, kPointCap);
