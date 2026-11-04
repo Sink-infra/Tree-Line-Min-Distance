@@ -78,6 +78,7 @@ __aicore__ inline void Hop()
 #include "tree_line_min_distance_single_axis.h"
 #include "tree_line_min_distance_affine.h"
 #include "tree_line_min_distance_affine_dispatch.h"
+#include "tree_line_min_distance_shared_grid.h"
 
 template <typename DT_TREE_POINTS, uint32_t PATH>
 __global__ __aicore__ void tree_line_min_distance(GM_ADDR tree_points, GM_ADDR line_segments,
@@ -85,6 +86,32 @@ __global__ __aicore__ void tree_line_min_distance(GM_ADDR tree_points, GM_ADDR l
                                                   GM_ADDR workspace, GM_ADDR tiling)
 {
     REGISTER_TILING_DEFAULT(TreeLineMinDistanceTilingData);
+    if constexpr (PATH == 252) {
+        GET_TILING_DATA_WITH_STRUCT(TreeLineMinDistanceTilingData, sharedTiling, tiling);
+        {
+            TPipe sharedPipe;
+            TBuf<TPosition::VECCALC> sharedStorage;
+            sharedPipe.InitBuffer(sharedStorage, SharedGridSearch::kArenaBytes);
+            SharedGridSearch::Search search;
+            if (search.Run(tree_points,line_segments,min_distance,nearest_segment_idx,
+                           GetUserWorkspace(workspace),sharedTiling)) return;
+        }
+        PipeBarrier<PIPE_ALL>();
+        {
+            TPipe spatialPipe;
+            TBuf<TPosition::VECCALC> spatialStorage;
+            spatialPipe.InitBuffer(spatialStorage,150528);
+            if (TreeDistanceSpatial::Run<DT_TREE_POINTS,true>(tree_points,line_segments,
+                min_distance,nearest_segment_idx,sharedTiling)) return;
+        }
+        PipeBarrier<PIPE_ALL>();
+        TPipe fallbackPipe;
+        TBuf<TPosition::VECCALC> denseStorage;
+        fallbackPipe.InitBuffer(denseStorage,188416);
+        DensePointTask<DT_TREE_POINTS>(tree_points,line_segments,min_distance,nearest_segment_idx,sharedTiling);
+        return;
+    }
+
     if constexpr (PATH == 251) {
         GET_TILING_DATA_WITH_STRUCT(TreeLineMinDistanceTilingData, modelTiling, tiling);
         AffineOrFallback<DT_TREE_POINTS>(tree_points, line_segments, min_distance,
