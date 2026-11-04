@@ -156,8 +156,8 @@ static ge::graphStatus TilingFunc(gert::TilingContext *context) {
     if (b * n == 1 && m >= 3 && m <= 8) PATH = 117 + m;
     if (mode == 3 && m >= 128 && chunkPoints >= 128 && chunkPoints < 768) PATH = 251;
     if (b * n == 1 && m == 1 && dtype == ge::DT_FLOAT) PATH = 194;
-    if (mode == 3 && m >= 128 && chunkPoints >= 1536 && chunkPoints <= 3328 &&
-        dtype == ge::DT_FLOAT && tasks <= cores && tasks <= 40 &&
+    if (mode == 3 && m >= 128 && chunkPoints >= 768 && chunkPoints <= 3328 &&
+        tasks <= cores && tasks <= 40 &&
         context->SetScheduleMode(1) == ge::GRAPH_SUCCESS) PATH = 252;
     ASCENDC_TPL_SEL_PARAM(context,DT_TREE_POINTS,PATH);
     context->GetWorkspaceSizes(1)[0]=PATH==252 ? platform.GetLibApiWorkSpaceSize() + (uint64_t)tasks*(6*((chunkPoints+7)/8*8+512)*4+72*4) : 0;

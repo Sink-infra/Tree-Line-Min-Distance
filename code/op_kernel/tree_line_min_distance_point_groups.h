@@ -63,8 +63,12 @@ public:
         segments.SetGlobalBuffer((__gm__ T *)s);
         distances.SetGlobalBuffer((__gm__ T *)d);
         indices.SetGlobalBuffer((__gm__ int32_t *)i);
-        pipe->InitBuffer(arenaBuf, oArena * sizeof(float));
-        arena = arenaBuf.Get<float>();
+        if (pipe != nullptr) {
+            pipe->InitBuffer(arenaBuf, oArena * sizeof(float));
+            arena = arenaBuf.Get<float>();
+        } else {
+            arena = LocalTensor<float>(TPosition::VECCALC, 0, oArena);
+        }
         if (mode == 2) {
             return;
         }
