@@ -76,6 +76,8 @@ __aicore__ inline void Hop()
 #include "tree_line_min_distance_small_overlap.h"
 
 #include "tree_line_min_distance_single_axis.h"
+#include "tree_line_min_distance_affine.h"
+#include "tree_line_min_distance_affine_dispatch.h"
 
 template <typename DT_TREE_POINTS, uint32_t PATH>
 __global__ __aicore__ void tree_line_min_distance(GM_ADDR tree_points, GM_ADDR line_segments,
@@ -83,6 +85,12 @@ __global__ __aicore__ void tree_line_min_distance(GM_ADDR tree_points, GM_ADDR l
                                                   GM_ADDR workspace, GM_ADDR tiling)
 {
     REGISTER_TILING_DEFAULT(TreeLineMinDistanceTilingData);
+    if constexpr (PATH == 251) {
+        GET_TILING_DATA_WITH_STRUCT(TreeLineMinDistanceTilingData, modelTiling, tiling);
+        AffineOrFallback<DT_TREE_POINTS>(tree_points, line_segments, min_distance,
+                                        nearest_segment_idx, modelTiling);
+        return;
+    }
     if constexpr (PATH == 241) {
         InitSocState();
         SinglePoint<DT_TREE_POINTS, 2, true, false, true, true>(
