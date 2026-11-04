@@ -36,17 +36,17 @@ class Search {
     { return ((uint64_t)source * 6 + field) * capacity + offset; }
     __aicore__ inline uint32_t Entry(uint32_t source, uint32_t cell)
     { return Meta().GetValue(source * kMeta + cell); }
-    __aicore__ inline bool BatchValid()
+    __aicore__ inline bool BatchValid(bool final = false)
     {
         DataCopyPad(Meta(), metadata, {1, blocks * kMeta * 4, 0, 0, 0}, {false, 0, 0, 0});
         Hop<HardEvent::MTE2_S>();
         for (uint32_t q = batch*t.chunks; q < (batch+1)*t.chunks; ++q)
-            if (Meta().GetValue(q * kMeta + 64) == 0) return false;
+            if (Meta().GetValue(q * kMeta + (final ? 67 : 64)) == 0) return false;
         return true;
     }
-    __aicore__ inline void SaveMeta(bool valid)
+    __aicore__ inline void SaveMeta(bool valid, bool final = false)
     {
-        SelfMeta().SetValue(64, valid ? 1u : 0u);
+        SelfMeta().SetValue(final ? 67 : 64, valid ? 1u : 0u);
         Hop<HardEvent::S_MTE3>();
         DataCopyPad(metadata[owner * kMeta], SelfMeta(), {1, kMeta * 4, 0, 0, 0});
     }
@@ -179,10 +179,11 @@ public:
             PipeBarrier<PIPE_ALL>();
             Duplicate(F(185344,72),0.0f,72);
             Hop<HardEvent::V_S>();
+            SelfMeta().SetValue(64,valid?1u:0u);
         }
-        SaveMeta(complete);
+        SaveMeta(complete,true);
         PipeBarrier<PIPE_ALL>();SyncAll();
-        const bool exactBatch=BatchValid();
+        const bool exactBatch=BatchValid(true);
         if (!gridReady) return true;
         if (!exactBatch) return false;
         RestoreOrder();
