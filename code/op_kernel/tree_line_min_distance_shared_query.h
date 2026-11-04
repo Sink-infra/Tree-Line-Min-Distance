@@ -38,7 +38,7 @@
     }
     __aicore__ inline float ComputeGroup(uint32_t span, uint32_t candidates)
     {
-        auto dx=F(98336,3584), dy=F(112704,3584), dz=F(127072,3584), ratio=F(141440,3584);
+        auto dx=F(98304,3584), dy=F(112768,3584), dz=F(127104,3584), ratio=F(141568,3584);
         auto pair=F(163072,128), cmin=F(163584,64), cidx=F(163840,64);
         auto best=F(164096,64), winner=F(164352,64);
         auto bx=F(156672,512), by=F(158720,512), bz=F(160768,512);
