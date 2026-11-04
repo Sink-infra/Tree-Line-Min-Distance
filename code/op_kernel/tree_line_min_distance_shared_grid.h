@@ -19,8 +19,28 @@ __aicore__ inline uint32_t Compact(const LocalTensor<float>& dst,
     return (uint32_t)kept;
 }
 
+template <typename T>
+__aicore__ inline void Historical(GM_ADDR p, GM_ADDR s, GM_ADDR d, GM_ADDR i,
+                                  const TreeLineMinDistanceTilingData& t)
+{
+    if (TreeDistanceSpatial::Run<T,true>(p,s,d,i,t)) return;
+    PipeBarrier<PIPE_ALL>();
+    if (t.chunkPoints < 1536) {
+        auto blocked=t;
+        blocked.group=HoistedPointGroupLayout::kPoints;
+        blocked.tilePoints=HoistedPointGroupLayout::kPoints;
+        KernelPointGroups<T,3,true,false,true,true,true,false,true,true> op;
+        op.Init(p,s,d,i,blocked,nullptr);
+        op.Process();
+    } else {
+        DensePointTask<T>(p,s,d,i,t);
+    }
+}
+
+template <typename T>
 class Search {
-    GlobalTensor<float> points, segments, distances, work;
+    GlobalTensor<T> points, segments, distances;
+    GlobalTensor<float> work;
     GlobalTensor<int32_t> indices;
     GlobalTensor<uint32_t> metadata, workBits;
     TreeLineMinDistanceTilingData t;
@@ -54,13 +74,20 @@ class Search {
     {
         auto raw = F(98304, 6144), scratch = F(159744), pair = F(171264, 128);
         auto offsets = F(155648).ReinterpretCast<int32_t>();
-        DataCopyPad(raw, segments[(uint64_t)batch * t.m * 6],
-            {1, t.m * 24, 0, 0, 0}, {false, 0, 0, 0});
+        auto input = F(122880,6144).template ReinterpretCast<T>();
+        if constexpr (sizeof(T)==4) input=raw.template ReinterpretCast<T>();
+        DataCopyPad(input, segments[(uint64_t)batch * t.m * 6],
+            {1, (uint32_t)(t.m * 6 * sizeof(T)), 0, 0, 0}, {false, 0, 0, 0});
         CreateVecIndex(scratch, 0.0f, wideM);
         Muls(scratch, scratch, 24.0f, wideM);
         Cast(offsets, scratch, RoundMode::CAST_RINT, wideM);
         Hop<HardEvent::MTE2_V>();
-        Hop<HardEvent::MTE2_S>();
+        if constexpr (sizeof(T)==2) {
+            Cast(raw,input,RoundMode::CAST_NONE,t.m*6);
+            Hop<HardEvent::V_S>();
+        } else {
+            Hop<HardEvent::MTE2_S>();
+        }
         if (TreeDistanceSpatial::PreferDenseSample(raw,t.m)==0) return false;
         Hop<HardEvent::S_V>();
         for (uint32_t axis = 0; axis < 3; ++axis) {
@@ -127,9 +154,15 @@ class Search {
         Gather(F(105472,kPoints),packedD,inverse,0u,owned);
         Gather(F(118784,kPoints),packedI,inverse,0u,owned);
         Cast(F(118784,kPoints).ReinterpretCast<int32_t>(),F(118784,kPoints),RoundMode::CAST_RINT,owned);
+        auto output=F(61440,kPoints).template ReinterpretCast<T>();
+        if constexpr (sizeof(T)==2) {
+            Cast(output,F(105472,kPoints),RoundMode::CAST_RINT,owned);
+        } else {
+            output=F(105472,kPoints).template ReinterpretCast<T>();
+        }
         Hop<HardEvent::V_MTE3>();
         const uint64_t out=(uint64_t)batch*t.n+begin;
-        DataCopyPad(distances[out],F(105472,kPoints),{1,owned*4,0,0,0});
+        DataCopyPad(distances[out],output,{1,(uint32_t)(owned*sizeof(T)),0,0,0});
         DataCopyPad(indices[out],F(118784,kPoints).ReinterpretCast<int32_t>(),{1,owned*4,0,0,0});
     }
 public:
@@ -141,8 +174,8 @@ public:
         batch=owner/t.chunks;begin=(owner%t.chunks)*t.chunkPoints;
         owned=begin<t.n?(t.n-begin<t.chunkPoints?t.n-begin:t.chunkPoints):0;
         capacity=Round8(t.chunkPoints)+512;wideM=AlignLanes(t.m);
-        points.SetGlobalBuffer((__gm__ float*)p);segments.SetGlobalBuffer((__gm__ float*)s);
-        distances.SetGlobalBuffer((__gm__ float*)d);indices.SetGlobalBuffer((__gm__ int32_t*)i);
+        points.SetGlobalBuffer((__gm__ T*)p);segments.SetGlobalBuffer((__gm__ T*)s);
+        distances.SetGlobalBuffer((__gm__ T*)d);indices.SetGlobalBuffer((__gm__ int32_t*)i);
         work.SetGlobalBuffer((__gm__ float*)workspace);
         workBits.SetGlobalBuffer((__gm__ uint32_t*)workspace);
         metadata.SetGlobalBuffer((__gm__ uint32_t*)((__gm__ float*)workspace+(uint64_t)blocks*6*capacity));
@@ -172,10 +205,7 @@ public:
             complete=QueryCells();
         } else {
             PipeBarrier<PIPE_ALL>();
-            if (!TreeDistanceSpatial::Run<float,true>(p,s,d,i,t)) {
-                PipeBarrier<PIPE_ALL>();
-                DensePointTask<float>(p,s,d,i,t);
-            }
+            Historical<T>(p,s,d,i,t);
             PipeBarrier<PIPE_ALL>();
             Duplicate(F(185344,72),0.0f,72);
             Hop<HardEvent::V_S>();

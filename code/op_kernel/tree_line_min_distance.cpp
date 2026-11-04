@@ -89,23 +89,16 @@ __global__ __aicore__ void tree_line_min_distance(GM_ADDR tree_points, GM_ADDR l
             TPipe sharedPipe;
             TBuf<TPosition::VECCALC> sharedStorage;
             sharedPipe.InitBuffer(sharedStorage, SharedGridSearch::kArenaBytes);
-            SharedGridSearch::Search search;
+            SharedGridSearch::Search<DT_TREE_POINTS> search;
             if (search.Run(tree_points,line_segments,min_distance,nearest_segment_idx,
                            GetUserWorkspace(workspace),sharedTiling)) return;
         }
         PipeBarrier<PIPE_ALL>();
-        {
-            TPipe spatialPipe;
-            TBuf<TPosition::VECCALC> spatialStorage;
-            spatialPipe.InitBuffer(spatialStorage,150528);
-            if (TreeDistanceSpatial::Run<DT_TREE_POINTS,true>(tree_points,line_segments,
-                min_distance,nearest_segment_idx,sharedTiling)) return;
-        }
-        PipeBarrier<PIPE_ALL>();
         TPipe fallbackPipe;
-        TBuf<TPosition::VECCALC> denseStorage;
-        fallbackPipe.InitBuffer(denseStorage,188416);
-        DensePointTask<DT_TREE_POINTS>(tree_points,line_segments,min_distance,nearest_segment_idx,sharedTiling);
+        TBuf<TPosition::VECCALC> fallbackStorage;
+        fallbackPipe.InitBuffer(fallbackStorage,SharedGridSearch::kArenaBytes);
+        SharedGridSearch::Historical<DT_TREE_POINTS>(tree_points,line_segments,
+            min_distance,nearest_segment_idx,sharedTiling);
         return;
     }
 

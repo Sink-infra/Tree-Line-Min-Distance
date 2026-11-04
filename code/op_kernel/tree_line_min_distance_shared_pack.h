@@ -7,12 +7,15 @@
         auto raw = F(0, kPoints * 3);
         auto offsets = F(79872, kPoints).ReinterpretCast<int32_t>();
         Hop<HardEvent::V_MTE2>();
-        DataCopyPad(raw, points[((uint64_t)batch * t.n + begin) * 3],
-            {1, owned * 12, 0, 0, 0}, {false, 0, 0, 0});
+        auto input=F(133120,kPoints*3).template ReinterpretCast<T>();
+        if constexpr (sizeof(T)==4) input=raw.template ReinterpretCast<T>();
+        DataCopyPad(input, points[((uint64_t)batch * t.n + begin) * 3],
+            {1, (uint32_t)(owned * 3 * sizeof(T)), 0, 0, 0}, {false, 0, 0, 0});
         CreateVecIndex(F(93184, kPoints), 0.0f, wide);
         Muls(F(93184, kPoints), F(93184, kPoints), 12.0f, wide);
         Cast(offsets, F(93184, kPoints), RoundMode::CAST_RINT, wide);
         Hop<HardEvent::MTE2_V>();
+        if constexpr (sizeof(T)==2) Cast(raw,input,RoundMode::CAST_NONE,owned*3);
         PipeBarrier<PIPE_V>();
         for (uint32_t axis = 0; axis < 3; ++axis) {
             auto out = F(39936 + axis * kPoints * 4, kPoints);
@@ -46,10 +49,10 @@
         auto order=F(13312,kPoints).ReinterpretCast<uint32_t>();
         auto inverse=F(26624,kPoints).ReinterpretCast<uint32_t>();
         CreateVecIndex(order.ReinterpretCast<int32_t>(),0,wide);
-        CreateVecIndex(F(93184,kPoints),0.0f,wide);
-        CompareScalar(Mask(0),F(93184,kPoints),(float)(int32_t)owned,CMPMODE::LT,wide);
         Muls(cells,cells,-1.0f,wide);
-        Select(cells,Mask(0),cells,-1.0e30f,SELMODE::VSEL_TENSOR_SCALAR_MODE,wide);
+        Hop<HardEvent::V_S>();
+        for (uint32_t q=owned;q<wide;++q) cells.SetValue(q,-1.0e30f);
+        Hop<HardEvent::S_V>();
         auto concat=F(79872,kPoints*2), sorted=F(106496,kPoints*2), sortTmp=F(133120,kPoints*2);
         Concat(concat,cells,F(159744,64),wide/16);
         Sort<float,true>(sorted,concat,order,sortTmp,wide/32);
