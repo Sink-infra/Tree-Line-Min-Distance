@@ -5,27 +5,40 @@
         return arena[oDx + offset];
     }
 
+    // Both members of a pair examine the same input sample before choosing work.
+    __aicore__ inline bool NeighborPairProbe(const LocalTensor<T>& probe, uint32_t point)
+    {
+        auto raw = arena[oSegRaw].template ReinterpretCast<T>();
+        const float a0 = (float)raw.GetValue(0), c0 = (float)raw.GetValue(3);
+        const float a1 = (float)raw.GetValue(6 * (m - 1));
+        const float c1 = (float)raw.GetValue(6 * (m - 1) + 3);
+        const float first = a0 + 0.5f * (c0 - a0);
+        const float span = a1 + 0.5f * (c1 - a1) - first;
+        const float extent = span < 0.0f ? -span : span;
+        float w0 = c0 - a0, w1 = c1 - a1;
+        if (w0 < 0.0f) w0 = -w0;
+        if (w1 < 0.0f) w1 = -w1;
+        if (!(extent > 0.0f) || (w0 > w1 ? w0 : w1) *
+            (float)(int32_t)(m - 1) > 32.0f * extent) return false;
+        neighborSign = span > 0.0f ? 1.0f : -1.0f;
+        neighborOrigin = first * neighborSign;
+        neighborExtent = extent;
+        neighborStep = extent / (float)(int32_t)(m - 1);
+        if (!(neighborStep > 1.0e-10f && neighborStep < 1.0e10f)) return false;
+        const float coordinate = (float)probe.GetValue(point * 3) * neighborSign;
+        const float delta = coordinate - neighborOrigin;
+        const float padding = 8.0f * neighborStep;
+        return delta >= -padding && delta <= neighborExtent + padding;
+    }
+
     // A global envelope bounds every segment outside the three candidates.
     __aicore__ inline bool TryNeighborSeed(uint32_t batch, uint32_t start, uint32_t count)
     {
         static_assert(!NEIGHBOR || oDx + 5760 <= oDy);
         if (m < 128 || m > 256 || count > 64) return false;
         Hop<HardEvent::V_S>();
-        const float a0 = arena[oAx].GetValue(0);
-        const float u0 = arena[oUx].GetValue(0);
-        const float a1 = arena[oAx].GetValue(m - 1);
-        const float u1 = arena[oUx].GetValue(m - 1);
-        const float first = a0 + 0.5f * u0;
-        const float span = a1 + 0.5f * u1 - first;
-        const float extent = span < 0.0f ? -span : span;
-        const float w0 = u0 < 0.0f ? -u0 : u0;
-        const float w1 = u1 < 0.0f ? -u1 : u1;
-        if (!(extent > 0.0f) ||
-            (w0 > w1 ? w0 : w1) * (float)(int32_t)(m - 1) > 32.0f * extent) return false;
-        const float sign = span > 0.0f ? 1.0f : -1.0f;
-        const float origin = first * sign;
-        const float step = extent / (float)(int32_t)(m - 1);
-        if (!(step > 1.0e-10f && step < 1.0e10f)) return false;
+        const float sign = neighborSign, origin = neighborOrigin;
+        const float extent = neighborExtent, step = neighborStep;
         auto lower = NeighborF(0), upper = NeighborF(256), anchor = NeighborF(512);
         auto magnitude = NeighborF(768), a = NeighborF(1024), c = NeighborF(1280);
         auto pair = NeighborF(1536), reduction = NeighborF(1600);

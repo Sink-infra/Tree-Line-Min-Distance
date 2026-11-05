@@ -39,7 +39,13 @@ __aicore__ inline bool SingletonSparseSeed(const LocalTensor<T>& raw, uint32_t m
     if (!(location >= 0.0f && location <= (float)(int32_t)(m - 1))) return false;
     winner = (int32_t)(location + 0.5f);
     best = SingletonSegmentDistance(raw, (uint32_t)winner, px, py, pz);
-    return best >= 0.0f && best < kGuardDist;
+    if (!(best >= 0.0f && best < kGuardDist)) return false;
+    const float position = (px - origin) * (span > 0.0f ? 1.0f : -1.0f);
+    float outside = 0.0f;
+    if (position < 0.0f) outside = -position;
+    else if (position > magnitude) outside = position - magnitude;
+    const float reach = outside + 8.0f * magnitude / (float)(int32_t)(m - 1) + width;
+    return best <= reach * reach;
 }
 
 // The projected segment lies inside its endpoint interval. Roundoff slack

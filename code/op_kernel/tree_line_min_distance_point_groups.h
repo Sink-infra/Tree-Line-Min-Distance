@@ -83,6 +83,9 @@ class KernelPointGroups {
     static constexpr uint32_t mode = MODE;
     uint32_t b, n, m, chunks, chunkPoints, tilePoints, group;
     uint32_t mAligned, mRepeat;
+    bool neighborAttempt = false;
+    uint32_t neighborPointOffset = 0;
+    float neighborSign = 1.0f, neighborOrigin = 0.0f, neighborExtent = 0.0f, neighborStep = 0.0f;
     bool orderedAxis = false;
     float axisLow = 0.0f, axisHigh = 0.0f, axisZ = 0.0f;
 
@@ -147,14 +150,43 @@ public:
             if (owned > chunkPoints) {
                 owned = chunkPoints;
             }
-            const bool fresh = cached != batch;
+            const bool fresh = NEIGHBOR || cached != batch;
             // Both reads are issued before the wait so the two global memory
             // latencies overlap instead of stacking.
             if (fresh) {
                 LoadSegments(batch);
             }
             const uint32_t head = owned < tilePoints ? owned : tilePoints;
-            LoadPoints(batch, begin, head);
+            uint32_t activeTilePoints = tilePoints;
+            neighborPointOffset = 0;
+            if constexpr (NEIGHBOR) {
+                const uint32_t localTask = task - batch * chunks;
+                const uint32_t pairBegin = (localTask & ~1u) * chunkPoints;
+                const uint32_t pairCount = n - pairBegin < 2 * chunkPoints ?
+                    n - pairBegin : 2 * chunkPoints;
+                const uint32_t pairHead = pairCount < 64 ? pairCount : 64;
+                const bool pairFits = pairCount <= 64;
+                LoadPoints(batch, pairFits ? pairBegin : begin, pairFits ? pairHead : head);
+                neighborAttempt = false;
+                if (sizeof(T) == 4 || pairFits) {
+                    Hop<HardEvent::MTE2_S>();
+                    auto probe = arena[oPtRaw].template ReinterpretCast<T>();
+                    neighborAttempt = NeighborPairProbe(probe, pairFits ? pairCount / 2 : head / 2);
+                }
+                if (neighborAttempt && pairFits) {
+                    if ((localTask & 1u) != 0) continue;
+                    owned = pairCount;
+                    activeTilePoints = 64;
+                } else if (pairFits && (localTask & 1u) != 0) {
+                    if ((chunkPoints * 3 * sizeof(T)) % 32 == 0 && chunkPoints + head <= pairHead) {
+                        neighborPointOffset = chunkPoints;
+                    } else {
+                        LoadPoints(batch, begin, head);
+                    }
+                }
+            } else {
+                LoadPoints(batch, begin, head);
+            }
             if (fresh) {
                 cached = batch;
                 if constexpr (AXIS) {
@@ -181,10 +213,10 @@ public:
             } else {
                 Hop<HardEvent::MTE2_S>();
             }
-            for (uint32_t done = 0; done < owned; done += tilePoints) {
+            for (uint32_t done = 0; done < owned; done += activeTilePoints) {
                 uint32_t count = owned - done;
-                if (count > tilePoints) {
-                    count = tilePoints;
+                if (count > activeTilePoints) {
+                    count = activeTilePoints;
                 }
                 // The previous tile's stores must retire before its result
                 // buffers are rewritten.
@@ -417,10 +449,14 @@ private:
     __aicore__ inline void BlockedLanes(uint32_t batch, uint32_t start, uint32_t count)
     {
         if constexpr (NEIGHBOR) {
-            if (TryNeighborSeed(batch, start, count)) return;
+            if (neighborAttempt && TryNeighborSeed(batch, start, count)) return;
         }
         LocalTensor<T> raw = arena[oPtRaw].template ReinterpretCast<T>();
         LocalTensor<float> src = arena[oPtRaw];
+        if constexpr (NEIGHBOR) {
+            raw = raw[neighborPointOffset * 3];
+            if constexpr (sizeof(T) == 4) src = arena[oPtRaw + neighborPointOffset * 3];
+        }
         if constexpr (sizeof(T) == 2) {
             src = arena[oPtFlt];
             Cast(src, raw, RoundMode::CAST_NONE, count * 3);
