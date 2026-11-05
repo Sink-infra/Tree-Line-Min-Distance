@@ -39,30 +39,32 @@
         Hop<HardEvent::V_S>();
         const float sign = neighborSign, origin = neighborOrigin;
         const float extent = neighborExtent, step = neighborStep;
-        auto lower = NeighborF(0), upper = NeighborF(256), anchor = NeighborF(512);
-        auto magnitude = NeighborF(768), a = NeighborF(1024), c = NeighborF(1280);
         auto pair = NeighborF(1536), reduction = NeighborF(1600);
-        Muls(a, arena[oAx], sign, m);
-        Muls(c, arena[oUx], sign, m);
-        Add(c, a, c, m);
-        Duplicate(lower, kGuardDist, mAligned);
-        Duplicate(upper, -kGuardDist, mAligned);
-        Min(lower, a, c, m); Max(upper, a, c, m);
-        if constexpr (!ANALYTIC_BOUND) {
-            Abs(a, lower, m); Abs(c, upper, m);
-            Duplicate(magnitude, 0.0f, mAligned);
-            Max(magnitude, a, c, m);
-        }
-        CreateVecIndex(anchor, 0.0f, mAligned);
-        Muls(anchor, anchor, step, mAligned); Adds(anchor, anchor, origin, mAligned);
-        Sub(lower, lower, anchor, m); Sub(upper, upper, anchor, m);
-        ReduceMin(pair, lower, reduction, mAligned, false);
-        ReduceMax(pair[8], upper, reduction, mAligned, false);
-        if constexpr (!ANALYTIC_BOUND) ReduceMax(pair[16], magnitude, reduction, mAligned, false);
-        Hop<HardEvent::V_S>();
         float margin, lowDelta, highDelta;
         if constexpr (ANALYTIC_BOUND) {
-            const float minDelta = pair.GetValue(0), maxDelta = pair.GetValue(8);
+            auto lower = NeighborF(0), upper = NeighborF(mAligned), anchor = NeighborF(512);
+            auto a = NeighborF(1024), c = NeighborF(1280);
+            Muls(a, arena[oAx], sign, m);
+            Muls(c, arena[oUx], sign, m);
+            Add(c, a, c, m);
+            Duplicate(lower, kGuardDist, mAligned);
+            Duplicate(upper, kGuardDist, mAligned);
+            Min(lower, a, c, m); Max(upper, a, c, m);
+            CreateVecIndex(anchor, 0.0f, mAligned);
+            Muls(anchor, anchor, step, mAligned); Adds(anchor, anchor, origin, mAligned);
+            Sub(lower, lower, anchor, m);
+            Sub(upper, anchor, upper, m);
+            const uint32_t repeats = mAligned / kLanes;
+            WholeReduceMin(pair, lower, (int32_t)kLanes, (int32_t)(2 * repeats),
+                1, 1, 8, ReduceOrder::ORDER_ONLY_VALUE);
+            Hop<HardEvent::V_S>();
+            float minDelta = pair.GetValue(0), negMaxDelta = pair.GetValue(repeats);
+            for (uint32_t k = 1; k < repeats; ++k) {
+                const float low = pair.GetValue(k), high = pair.GetValue(repeats + k);
+                if (low < minDelta) minDelta = low;
+                if (high < negMaxDelta) negMaxDelta = high;
+            }
+            const float maxDelta = -negMaxDelta;
             const float absOrigin = origin < 0.0f ? -origin : origin;
             const float absLow = minDelta < 0.0f ? -minDelta : minDelta;
             const float absHigh = maxDelta < 0.0f ? -maxDelta : maxDelta;
@@ -76,6 +78,24 @@
             lowDelta = minDelta - margin;
             highDelta = maxDelta + margin;
         } else {
+            auto lower = NeighborF(0), upper = NeighborF(256), anchor = NeighborF(512);
+            auto magnitude = NeighborF(768), a = NeighborF(1024), c = NeighborF(1280);
+            Muls(a, arena[oAx], sign, m);
+            Muls(c, arena[oUx], sign, m);
+            Add(c, a, c, m);
+            Duplicate(lower, kGuardDist, mAligned);
+            Duplicate(upper, -kGuardDist, mAligned);
+            Min(lower, a, c, m); Max(upper, a, c, m);
+            Abs(a, lower, m); Abs(c, upper, m);
+            Duplicate(magnitude, 0.0f, mAligned);
+            Max(magnitude, a, c, m);
+            CreateVecIndex(anchor, 0.0f, mAligned);
+            Muls(anchor, anchor, step, mAligned); Adds(anchor, anchor, origin, mAligned);
+            Sub(lower, lower, anchor, m); Sub(upper, upper, anchor, m);
+            ReduceMin(pair, lower, reduction, mAligned, false);
+            ReduceMax(pair[8], upper, reduction, mAligned, false);
+            ReduceMax(pair[16], magnitude, reduction, mAligned, false);
+            Hop<HardEvent::V_S>();
             const float bound = pair.GetValue(16);
             if (!(bound < 1.0e10f)) return false;
             margin = 0.00000762939453125f *
