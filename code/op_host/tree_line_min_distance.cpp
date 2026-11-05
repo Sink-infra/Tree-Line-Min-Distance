@@ -107,7 +107,7 @@ static ge::graphStatus TilingFunc(gert::TilingContext *context) {
         mode = 3; chunks = 1; chunkPoints = n; tilePoints = n; group = n;
     }
     if (mode==3 && m>=128 && m<=256 && chunkPoints<32 && b*n>=cores*8) {
-        uint32_t budget=(cores*3/5)/b;
+        uint32_t budget=(cores*2/5)/b;
         if (budget==0) budget=1;
         chunkPoints=CeilDiv(n,budget);
         chunks=CeilDiv(n,chunkPoints);
