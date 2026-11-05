@@ -56,7 +56,8 @@ __aicore__ inline bool ScreenSingleton(const LocalTensor<float>& src,
     const LocalTensor<float>& hi, const LocalTensor<float>& bound,
     const LocalTensor<float>& temp, const LocalTensor<float>& pair,
     const LocalTensor<uint8_t>& mask, uint32_t m, uint32_t width,
-    float px, float py, float pz, float& best, int32_t& winner)
+    float px, float py, float pz, float& best, int32_t& winner,
+    uint32_t& compactCount)
 {
     if (m < 128) return false;
     Duplicate(bound, kGuardDist, width);
@@ -76,7 +77,10 @@ __aicore__ inline bool ScreenSingleton(const LocalTensor<float>& src,
     GatherMask(lo.ReinterpretCast<int32_t>(), offsets, mask.ReinterpretCast<uint32_t>(),
                true, m, {1, 1, 0, 0}, kept);
     Hop<HardEvent::V_S>();
-    if (kept == 0 || kept > 8) return false;
+    if (kept == 0 || kept > 8) {
+        if (kept >= 9 && kept <= 64) compactCount = (uint32_t)kept;
+        return false;
+    }
     const int32_t seedIndex = winner;
     for (uint32_t q = 0; q < (uint32_t)kept; ++q) {
         const int32_t j = lo.ReinterpretCast<int32_t>().GetValue(q) / 24;

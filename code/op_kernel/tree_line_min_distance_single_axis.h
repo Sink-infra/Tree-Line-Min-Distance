@@ -145,37 +145,52 @@ __aicore__ inline void FusedPointSegments(GM_ADDR p, GM_ADDR s, GM_ADDR d, GM_AD
     Gather(ax, src, off.template ReinterpretCast<uint32_t>(), 0u, m);
     Gather(ux, src, off.template ReinterpretCast<uint32_t>(), 12u, m);
 
+    uint32_t compactCount = 0;
     const bool screened = mayScreen && ScreenSingleton(src, off, ax, ux, ay, az, dsq, work,
                                          pair, keep, m, width, px, py, pz,
-                                         screenedBest, screenedWinner);
+                                         screenedBest, screenedWinner, compactCount);
     if (mayScreen && !screened) Hop<HardEvent::S_V>();
+    const bool compacted = !screened && compactCount >= 9 && compactCount <= 64;
+    const uint32_t activeCount = compacted ? compactCount : m;
+    const uint32_t activeWidth = compacted ? 64 : width;
     if (screened) {
         pair.SetValue(0, screenedBest);
         idx.SetValue(0, screenedWinner);
     } else {
-    Gather(ay, src, off.template ReinterpretCast<uint32_t>(), 4u, m);
-    Gather(az, src, off.template ReinterpretCast<uint32_t>(), 8u, m);
-    Gather(uy, src, off.template ReinterpretCast<uint32_t>(), 16u, m);
-    Gather(uz, src, off.template ReinterpretCast<uint32_t>(), 20u, m);
-    Sub(ux, ux, ax, m); Sub(uy, uy, ay, m); Sub(uz, uz, az, m);
-    Adds(ax, ax, -px, m); Adds(ay, ay, -py, m); Adds(az, az, -pz, m);
-    Mul(length, ux, ux, width);
-    MulAddDst(length, uy, uy, width); MulAddDst(length, uz, uz, width);
-    Mul(ratio, ax, ux, width);
-    MulAddDst(ratio, ay, uy, width); MulAddDst(ratio, az, uz, width);
-    Muls(length, length, -1.0f, width);
-    CompareScalar(keep, length, 0.0f, CMPMODE::NE, width);
-    Select(length, keep, length, -1.0f, SELMODE::VSEL_TENSOR_SCALAR_MODE, width);
-    Div(ratio, ratio, length, width);
-    Maxs(ratio, ratio, 0.0f, width); Mins(ratio, ratio, 1.0f, width);
-    MulAddDst(ax, ratio, ux, width); MulAddDst(ay, ratio, uy, width); MulAddDst(az, ratio, uz, width);
-    Mul(dsq, ax, ax, width);
-    MulAddDst(dsq, ay, ay, width); MulAddDst(dsq, az, az, width);
-    ReduceMin(pair, dsq, work, width, true);
+    if (compacted) {
+        Copy(off, ay.template ReinterpretCast<int32_t>(), (uint64_t)64, 1, {1, 1, 8, 8});
+        PipeBarrier<PIPE_V>();
+        if (activeCount != 64) {
+            Duplicate(ax, kGuardCoord, 64); Duplicate(ay, kGuardCoord, 64); Duplicate(az, kGuardCoord, 64);
+            Duplicate(ux, 0.0f, 64); Duplicate(uy, 0.0f, 64); Duplicate(uz, 0.0f, 64);
+        }
+        Gather(ax, src, off.template ReinterpretCast<uint32_t>(), 0u, activeCount);
+        Gather(ux, src, off.template ReinterpretCast<uint32_t>(), 12u, activeCount);
+    }
+    Gather(ay, src, off.template ReinterpretCast<uint32_t>(), 4u, activeCount);
+    Gather(az, src, off.template ReinterpretCast<uint32_t>(), 8u, activeCount);
+    Gather(uy, src, off.template ReinterpretCast<uint32_t>(), 16u, activeCount);
+    Gather(uz, src, off.template ReinterpretCast<uint32_t>(), 20u, activeCount);
+    Sub(ux, ux, ax, activeCount); Sub(uy, uy, ay, activeCount); Sub(uz, uz, az, activeCount);
+    Adds(ax, ax, -px, activeCount); Adds(ay, ay, -py, activeCount); Adds(az, az, -pz, activeCount);
+    Mul(length, ux, ux, activeWidth);
+    MulAddDst(length, uy, uy, activeWidth); MulAddDst(length, uz, uz, activeWidth);
+    Mul(ratio, ax, ux, activeWidth);
+    MulAddDst(ratio, ay, uy, activeWidth); MulAddDst(ratio, az, uz, activeWidth);
+    Muls(length, length, -1.0f, activeWidth);
+    CompareScalar(keep, length, 0.0f, CMPMODE::NE, activeWidth);
+    Select(length, keep, length, -1.0f, SELMODE::VSEL_TENSOR_SCALAR_MODE, activeWidth);
+    Div(ratio, ratio, length, activeWidth);
+    Maxs(ratio, ratio, 0.0f, activeWidth); Mins(ratio, ratio, 1.0f, activeWidth);
+    MulAddDst(ax, ratio, ux, activeWidth); MulAddDst(ay, ratio, uy, activeWidth); MulAddDst(az, ratio, uz, activeWidth);
+    Mul(dsq, ax, ax, activeWidth);
+    MulAddDst(dsq, ay, ay, activeWidth); MulAddDst(dsq, az, az, activeWidth);
+    ReduceMin(pair, dsq, work, activeWidth, true);
     }
     if (!screened) {
         Hop<HardEvent::V_S>();
-        idx.SetValue(0, pair.template ReinterpretCast<int32_t>().GetValue(1));
+        const int32_t localWinner = pair.template ReinterpretCast<int32_t>().GetValue(1);
+        idx.SetValue(0, compacted ? off.GetValue((uint32_t)localWinner) / 24 : localWinner);
     }
     Hop<HardEvent::S_V>();
     Sqrt(pair, pair, 1);
