@@ -95,7 +95,7 @@ template <typename T>
 __aicore__ inline void FusedPointSegments(GM_ADDR p, GM_ADDR s, GM_ADDR d, GM_ADDR i,
                                          uint32_t m)
 {
-    ICachePreLoad(3);
+    ICachePreLoad(4);
     GlobalTensor<T> points, segments, distances;
     GlobalTensor<int32_t> indices;
     points.SetGlobalBuffer((__gm__ T *)p, 3);

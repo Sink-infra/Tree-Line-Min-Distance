@@ -209,9 +209,7 @@ __global__ __aicore__ void tree_line_min_distance(GM_ADDR tree_points, GM_ADDR l
     } else {
         GET_TILING_DATA_WITH_STRUCT(TreeLineMinDistanceTilingData, t, tiling);
         if constexpr (PATH == 128) {
-            TPipe pipe;
-            TBuf<TPosition::VECCALC> storage;
-            pipe.InitBuffer(storage, 95232);
+            InitSocState();
             FusedPointSegments<DT_TREE_POINTS>(tree_points, line_segments, min_distance, nearest_segment_idx, t.m);
         } else if constexpr (PATH == 53) {
             TPipe pipe;
