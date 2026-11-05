@@ -1,268 +1,154 @@
 #include "kernel_operator.h"
 #include "tree_line_min_distance_tiling.h"
 #include "tiling_key_tree_line_min_distance.h"
-
 using namespace AscendC;
-
-namespace {
-constexpr float kGuardDist = 3.0e38f;
-// A guard start point this far out loses every reduction while its squared
-// distance still fits comfortably inside fp32.
-constexpr float kGuardCoord = 1.0e18f;
-constexpr uint32_t kLanes = 64;      // fp32 elements in one 256B vector repeat
-constexpr uint32_t kGroupCap = 64;   // points carried by one blocked call
-constexpr uint32_t kBlockLanes = kGroupCap * kLanes;
-constexpr uint32_t kTileCap = 512;   // points resident in one tile
-
-// Single arena carved by hand. Segment lane parameters stay live across a
-// whole batch; the derivation scratch is overlaid on the block work area,
-// which is only written after the derivation finishes.
-constexpr uint32_t oAx = 0, oAy = 1024, oAz = 2048;
-constexpr uint32_t oUx = 3072, oUy = 4096, oUz = 5120;
-constexpr uint32_t oKx = 6144, oKy = 7168, oKz = 8192;
-constexpr uint32_t oDx = 9224, oDy = 13328, oDz = 17432, oTt = 21536, oDsq = 25640;
-// derivation scratch, overlaid on the work area
-constexpr uint32_t oSegRaw = 9216;    // 6144 T
-constexpr uint32_t oSegFlt = 15360;   // 6144 float, fp16 input only
-constexpr uint32_t oNegOne = 21504;   // 1024 float, constant -1
-constexpr uint32_t oLen = 22528;      // 1024 float
-constexpr uint32_t oInvLen = 23552;   // 1024 float
-// persistent
-constexpr uint32_t oSegOff = 29736;   // 1024 uint32, 24 * j
-constexpr uint32_t oPtRaw = 30760;    // 1536 T
-constexpr uint32_t oPtFlt = 32296;    // 1536 float
-constexpr uint32_t oPtOff = 33832;    // 512 uint32, 12 * i
-constexpr uint32_t oDiv8 = 34344;     // 512 uint32, 4 * (l / 8)
-constexpr uint32_t oPx = 34856, oPy = 34920, oPz = 34984;
-constexpr uint32_t oPxv = 35048, oPyv = 35560, oPzv = 36072;
-constexpr uint32_t oPair = 36584;     // 128 float, value/index pairs
-constexpr uint32_t oCmin = 36712, oCidx = 36776;
-constexpr uint32_t oBest = 36840, oFidx = 37352;
-constexpr uint32_t oRes = 37864;      // 1024 float
-constexpr uint32_t oRedW = 38888;     // 512 float
-constexpr uint32_t oDist = 39400;     // 512 float
-constexpr uint32_t oIdx = 39912;      // 512 int32
-constexpr uint32_t oHalf = 40424;     // 512 half
-constexpr uint32_t oMask = 40680;     // 256B compare mask
-constexpr uint32_t oArena = 40744;    // arena size in floats
-
-__aicore__ inline uint32_t AlignLanes(uint32_t v)
-{
-    return (v + kLanes - 1) / kLanes * kLanes;
-}
-
-// One producer/consumer handshake. Draining a single queue costs far less
-// than a full-pipeline barrier, which matters most on the shapes whose whole
-// runtime is a handful of transfers and calls.
-template <HardEvent E>
-__aicore__ inline void Hop()
-{
-    SetFlag<E>(EVENT_ID0);
-    WaitFlag<E>(EVENT_ID0);
-}
-}  // namespace
-
-#include "tree_line_min_distance_spatial.h"
-#include "tree_line_min_distance_dense_points.h"
-
-#include "tree_line_min_distance_segment_lanes.h"
-
-#include "tree_line_min_distance_point_groups.h"
-
-#include "tree_line_min_distance_scalar.h"
-
-#include "tree_line_min_distance_small.h"
-
-#include "tree_line_min_distance_single_axis.h"
-#include "tree_line_min_distance_affine.h"
-#include "tree_line_min_distance_shared_grid.h"
-
-template <typename DT_TREE_POINTS, uint32_t PATH>
-__aicore__ inline void ProbeBaseline(GM_ADDR tree_points, GM_ADDR line_segments,
-                                                  GM_ADDR min_distance, GM_ADDR nearest_segment_idx,
-                                                  GM_ADDR workspace, GM_ADDR tiling)
-{
-    REGISTER_TILING_DEFAULT(TreeLineMinDistanceTilingData);
-    if constexpr (PATH == 252 || PATH == 253) {
-        GET_TILING_DATA_WITH_STRUCT(TreeLineMinDistanceTilingData, sharedTiling, tiling);
-        {
-            TPipe sharedPipe;
-            TBuf<TPosition::VECCALC> sharedStorage;
-            sharedPipe.InitBuffer(sharedStorage, SharedGridSearch::kArenaBytes);
-            SharedGridSearch::Search<DT_TREE_POINTS,PATH == 253> search;
-            if (search.Run(tree_points,line_segments,min_distance,nearest_segment_idx,
-                           GetUserWorkspace(workspace),sharedTiling)) return;
-        }
-        PipeBarrier<PIPE_ALL>();
-        TPipe fallbackPipe;
-        TBuf<TPosition::VECCALC> fallbackStorage;
-        fallbackPipe.InitBuffer(fallbackStorage,SharedGridSearch::kArenaBytes);
-        SharedGridSearch::Historical<DT_TREE_POINTS>(tree_points,line_segments,
-            min_distance,nearest_segment_idx,sharedTiling);
-        return;
+template <typename T>
+class KernelTreeLineMinDistance {
+    TPipe *pipe;
+    TBuf<TPosition::VECCALC> rawBuf,pointBuf,arraysBuf,workBuf,resultBuf,outputBuf,convertBuf;
+    GlobalTensor<T> points,segments,distances;
+    GlobalTensor<int32_t> indices;
+    uint32_t b,n,m,width;
+    __aicore__ inline void Sync() { PipeBarrier<PIPE_ALL>(); }
+public:
+    __aicore__ inline void Init(GM_ADDR p,GM_ADDR s,GM_ADDR d,GM_ADDR i,TreeLineMinDistanceTilingData t,TPipe *pipeIn) {
+        pipe=pipeIn;
+        b=t.b; n=t.n; m=t.m; width=(m+63)/64*64;
+        points.SetGlobalBuffer((__gm__ T*)p); segments.SetGlobalBuffer((__gm__ T*)s);
+        distances.SetGlobalBuffer((__gm__ T*)d); indices.SetGlobalBuffer((__gm__ int32_t*)i);
+        pipe->InitBuffer(rawBuf,6*1024*4);
+        pipe->InitBuffer(pointBuf,96*4);
+        pipe->InitBuffer(arraysBuf,7*width*4);
+        pipe->InitBuffer(workBuf,7*width*4);
+        pipe->InitBuffer(resultBuf,(width+64)*4);
+        pipe->InitBuffer(outputBuf,32*12);
+        if constexpr (sizeof(T)==2) { pipe->InitBuffer(convertBuf,6*1024*4); }
     }
-
-    if constexpr (PATH == 251) {
-        GET_TILING_DATA_WITH_STRUCT(TreeLineMinDistanceTilingData, modelTiling, tiling);
-        AffineOrFallback<DT_TREE_POINTS>(tree_points, line_segments, min_distance,
-                                        nearest_segment_idx, modelTiling);
-        return;
-    }
-    if constexpr (PATH == 241) {
-        InitSocState();
-        SinglePoint<DT_TREE_POINTS, 2, true, false, true, true>(
-            tree_points, line_segments, min_distance, nearest_segment_idx);
-        return;
-    }
-    if constexpr (PATH >= 233 && PATH <= 240) {
-        InitSocState();
-        TinySingleSegmentOverlap<DT_TREE_POINTS, PATH - 232, 1, true, false, true>(
-            tree_points, line_segments, min_distance, nearest_segment_idx);
-        return;
-    }
-    if constexpr (PATH >= 194 && PATH <= 201) {
-        InitSocState();
-        SinglePoint<DT_TREE_POINTS, PATH - 193, true, false, true>(tree_points, line_segments, min_distance, nearest_segment_idx);
-        return;
-    }
-    if constexpr (PATH >= 202 && PATH <= 215) {
-        InitSocState();
-        FixedSmallBatch<DT_TREE_POINTS, (PATH - 202) % 7 + 2, (PATH - 202) / 7 + 1, true, false, true>(tree_points, line_segments, min_distance, nearest_segment_idx);
-        return;
-    }
-    if constexpr (PATH == 1 || PATH == 2 || PATH == 3 || PATH == 4 ||
-        (PATH >= 21 && PATH <= 26) || (PATH >= 60 && PATH <= 73) ||
-        (PATH >= 90 && PATH <= 95) || (PATH >= 98 && PATH <= 99) ||
-        (PATH >= 100 && PATH <= 113) || (PATH >= 120 && PATH <= 125) ||
-        PATH == 156) {
-        InitSocState();
-    }
-    if constexpr (PATH == 157 || PATH == 158 || PATH == 159) {
-        GET_TILING_DATA_WITH_STRUCT(TreeLineMinDistanceTilingData, spatialTiling, tiling);
-        {
-            TPipe candidatePipe;
-            TBuf<TPosition::VECCALC> candidateStorage;
-            candidatePipe.InitBuffer(candidateStorage, 150528);
-            if (TreeDistanceSpatial::Run<DT_TREE_POINTS, true>(tree_points, line_segments,
-                min_distance, nearest_segment_idx, spatialTiling)) return;
-        }
-        PipeBarrier<PIPE_ALL>();
-        TPipe pipe;
-        if (spatialTiling.chunkPoints < 1536) {
-            auto blockedTiling = spatialTiling;
-            blockedTiling.group = HoistedPointGroupLayout::kPoints;
-            blockedTiling.tilePoints = HoistedPointGroupLayout::kPoints;
-            KernelPointGroups<DT_TREE_POINTS, 3, true, false, true, true, true, false, true, true> op;
-            op.Init(tree_points, line_segments, min_distance, nearest_segment_idx, blockedTiling, &pipe);
-            op.Process();
-        } else {
-            TBuf<TPosition::VECCALC> denseStorage;
-            pipe.InitBuffer(denseStorage, 188416);
-            DensePointTask<DT_TREE_POINTS>(tree_points, line_segments,
-                min_distance, nearest_segment_idx, spatialTiling);
-        }
-        return;
-    }
-    if constexpr (PATH == 156) {
-        GET_TILING_DATA_WITH_STRUCT(TreeLineMinDistanceTilingData, spatialTiling, tiling);
-        if (TreeDistanceSpatial::Run<DT_TREE_POINTS>(tree_points, line_segments,
-            min_distance, nearest_segment_idx, spatialTiling)) return;
-        PipeBarrier<PIPE_ALL>();
-        TPipe pipe;
-        KernelPointGroups<DT_TREE_POINTS, 3, true, false, true, true, false, false, true> op;
-        op.Init(tree_points, line_segments, min_distance, nearest_segment_idx, spatialTiling, &pipe);
-        op.Process();
-        return;
-    }
-    if constexpr (PATH >= 140 && PATH <= 153) {
-        TPipe pipe;
-        TBuf<TPosition::VECCALC> storage;
-        pipe.InitBuffer(storage, 512);
-        FixedSmallBatch<DT_TREE_POINTS, (PATH - 140) % 7 + 2, (PATH - 140) / 7 + 1, false, true>(tree_points, line_segments, min_distance, nearest_segment_idx);
-    } else if constexpr (PATH >= 130 && PATH <= 131) {
-        TPipe pipe;
-        TBuf<TPosition::VECCALC> storage;
-        pipe.InitBuffer(storage, 512);
-        SinglePoint<DT_TREE_POINTS, PATH - 129, false, true>(tree_points, line_segments, min_distance, nearest_segment_idx);
-    } else if constexpr (PATH >= 100 && PATH <= 113) {
-        FixedSmallBatch<DT_TREE_POINTS, (PATH - 100) % 7 + 2, (PATH - 100) / 7 + 1, true>(tree_points, line_segments, min_distance, nearest_segment_idx);
-    } else if constexpr (PATH >= 98 && PATH <= 99) {
-        SinglePoint<DT_TREE_POINTS, PATH - 97, true>(tree_points, line_segments, min_distance, nearest_segment_idx);
-    } else if constexpr (PATH >= 120 && PATH <= 125) {
-        SinglePoint<DT_TREE_POINTS, PATH - 117, true>(tree_points, line_segments, min_distance, nearest_segment_idx);
-    } else if constexpr (PATH >= 60 && PATH <= 73) {
-        FixedSmallBatch<DT_TREE_POINTS, (PATH - 60) % 7 + 2, (PATH - 60) / 7 + 1>(tree_points, line_segments, min_distance, nearest_segment_idx);
-    } else if constexpr (PATH >= 21 && PATH <= 26) {
-        SinglePoint<DT_TREE_POINTS, PATH - 18>(tree_points, line_segments, min_distance, nearest_segment_idx);
-    } else if constexpr (PATH == 2) {
-        SinglePoint<DT_TREE_POINTS, 1>(tree_points, line_segments, min_distance, nearest_segment_idx);
-    } else if constexpr (PATH == 3) {
-        SinglePoint<DT_TREE_POINTS, 2>(tree_points, line_segments, min_distance, nearest_segment_idx);
-    } else {
-        GET_TILING_DATA_WITH_STRUCT(TreeLineMinDistanceTilingData, t, tiling);
-        if constexpr (PATH == 128) {
-            TPipe pipe;
-            TBuf<TPosition::VECCALC> storage;
-            pipe.InitBuffer(storage, 95232);
-            FusedPointSegments<DT_TREE_POINTS>(tree_points, line_segments, min_distance, nearest_segment_idx, t.m);
-        } else if constexpr (PATH == 53) {
-            TPipe pipe;
-            TBuf<TPosition::VECCALC> storage;
-            pipe.InitBuffer(storage, 61728);
-            SingleSegmentTask<DT_TREE_POINTS>(tree_points, line_segments, min_distance, nearest_segment_idx, t);
-        } else if constexpr (PATH >= 90 && PATH <= 95) {
-            SmallScalarTask<DT_TREE_POINTS, PATH - 87>(tree_points, line_segments, min_distance, nearest_segment_idx, t);
-        } else if constexpr (PATH == 1) {
-            LegacyScalarTask<DT_TREE_POINTS>(tree_points, line_segments, min_distance, nearest_segment_idx, t);
-        } else if constexpr (PATH == 4) {
-            ScalarTask<DT_TREE_POINTS>(tree_points, line_segments, min_distance, nearest_segment_idx, t);
-        } else {
-            if constexpr (PATH == 10) ICachePreLoad(3);
-            TPipe pipe;
-            if constexpr (PATH != 5 && PATH != 10) {
-            KernelPointGroups<DT_TREE_POINTS, PATH == 5 ? 1 : (PATH == 6 || PATH == 50 || PATH == 51 || PATH == 54 || PATH == 55 || PATH == 57 || PATH == 129 || PATH == 155 || PATH == 80 ? 3 : 0), (PATH == 50 || PATH == 51 || PATH == 54 || PATH == 55 || PATH == 57 || PATH == 129 || PATH == 155), PATH == 80, (PATH == 51 || PATH == 54 || PATH == 55 || PATH == 57 || PATH == 155), (PATH == 54 || PATH == 55 || PATH == 57 || PATH == 129 || PATH == 155), PATH == 55, PATH == 57, PATH == 155> op;
-            op.Init(tree_points, line_segments, min_distance, nearest_segment_idx, t, &pipe);
-            if constexpr (PATH == 10) op.ProcessOne();
-            else op.Process();
-            } else {
-            KernelTreeLineMinDistance<DT_TREE_POINTS, PATH == 5 ? 1 : (PATH == 6 || PATH == 50 ? 3 : 0), PATH == 50> op;
-            op.Init(tree_points, line_segments, min_distance, nearest_segment_idx, t, &pipe);
-            if constexpr (PATH == 10) op.ProcessOne();
-            else op.Process();
+    __aicore__ inline void Process() {
+        auto raw=rawBuf.Get<T>();
+        auto pt=pointBuf.Get<T>();
+        auto a=arraysBuf.Get<float>();
+        auto ax=a[0],ay=a[width],az=a[2*width];
+        auto ux=a[3*width],uy=a[4*width],uz=a[5*width],len=a[6*width];
+        auto work=workBuf.Get<float>();
+        auto dx=work[0],dy=work[width],dz=work[2*width],t=work[3*width];
+        auto tmp=work[4*width],dsq=work[5*width];
+        auto red=resultBuf.Get<float>(),scratch=red[64];
+        auto out=outputBuf.Get<float>();
+        auto idx=outputBuf.Get<int32_t>()[32];
+        auto typedOut=outputBuf.Get<T>()[256/sizeof(T)];
+        uint32_t blocks=(n+31)/32,cached=b;
+        for (uint32_t task=GetBlockIdx();task<b*blocks;task+=GetBlockNum()) {
+            uint32_t batch=task/blocks,start=(task%blocks)*32,count=n-start;
+            if(count>32) count=32;
+            if(cached!=batch) {
+                DataCopyPad(raw,segments[batch*m*6],{1,uint32_t(m*6*sizeof(T)),0,0,0},{false,0,0,0}); Sync();
+                if(m>=32) {
+                    auto src=raw.template ReinterpretCast<float>();
+                    if constexpr (sizeof(T)==2) {
+                        src=convertBuf.Get<float>();
+                        Cast(src,raw,RoundMode::CAST_NONE,6*m);
+                    }
+                    auto offsets=work.template ReinterpretCast<uint32_t>()[6*width];
+                    for(uint32_t j=0;j<m;++j) { offsets.SetValue(j,24*j); }
+                    Sync();
+                    Gather(ax,src,offsets,0,m); Gather(ay,src,offsets,4,m); Gather(az,src,offsets,8,m);
+                    Gather(ux,src,offsets,12,m); Gather(uy,src,offsets,16,m); Gather(uz,src,offsets,20,m);
+                    Sub(ux,ux,ax,m); Sub(uy,uy,ay,m); Sub(uz,uz,az,m);
+                    Mul(len,ux,ux,m); Mul(tmp,uy,uy,m); Add(len,len,tmp,m);
+                    Mul(tmp,uz,uz,m); Add(len,len,tmp,m);
+                    auto mask=pointBuf.Get<uint8_t>();
+                    CompareScalar(mask,len,0.0f,CMPMODE::NE,width);
+                    Select(len,mask,len,1.0f,SELMODE::VSEL_TENSOR_SCALAR_MODE,m);
+                } else {
+                for(uint32_t j=0;j<m;++j) {
+                    float x=(float)raw.GetValue(6*j),y=(float)raw.GetValue(6*j+1),z=(float)raw.GetValue(6*j+2);
+                    float vx=(float)raw.GetValue(6*j+3)-x,vy=(float)raw.GetValue(6*j+4)-y,vz=(float)raw.GetValue(6*j+5)-z;
+                    ax.SetValue(j,x); ay.SetValue(j,y); az.SetValue(j,z);
+                    ux.SetValue(j,vx); uy.SetValue(j,vy); uz.SetValue(j,vz);
+                    float l=vx*vx+vy*vy+vz*vz;
+                    len.SetValue(j,l==0.0f?1.0f:l);
+                }
+                }
+                cached=batch; Sync();
             }
+            DataCopyPad(pt,points[(batch*n+start)*3],{1,uint32_t(count*3*sizeof(T)),0,0,0},{false,0,0,0}); Sync();
+            if(m==1 && count>=4) {
+                float x=ax.GetValue(0),y=ay.GetValue(0),z=az.GetValue(0);
+                float vx=ux.GetValue(0),vy=uy.GetValue(0),vz=uz.GetValue(0);
+                auto denominator=work[6*width];
+                for(uint32_t p=0;p<count;++p) {
+                    dx.SetValue(p,x-(float)pt.GetValue(3*p));
+                    dy.SetValue(p,y-(float)pt.GetValue(3*p+1));
+                    dz.SetValue(p,z-(float)pt.GetValue(3*p+2));
+                }
+                Sync();
+                Duplicate(denominator,len.GetValue(0),count);
+                Muls(t,dx,vx,count); Muls(tmp,dy,vy,count); Add(t,t,tmp,count);
+                Muls(tmp,dz,vz,count); Add(t,t,tmp,count); Muls(t,t,-1.0f,count);
+                Div(t,t,denominator,count); Maxs(t,t,0.0f,count); Mins(t,t,1.0f,count);
+                Muls(tmp,t,vx,count); Add(dx,dx,tmp,count);
+                Muls(tmp,t,vy,count); Add(dy,dy,tmp,count);
+                Muls(tmp,t,vz,count); Add(dz,dz,tmp,count);
+                Mul(dsq,dx,dx,count); Mul(tmp,dy,dy,count); Add(dsq,dsq,tmp,count);
+                Mul(tmp,dz,dz,count); Add(dsq,dsq,tmp,count);
+                Sqrt(out,dsq,count);
+                Duplicate(idx,int32_t(0),count);
+            } else {
+            for(uint32_t p=0;p<count;++p) {
+                float x=(float)pt.GetValue(3*p),y=(float)pt.GetValue(3*p+1),z=(float)pt.GetValue(3*p+2);
+                Adds(dx,ax,-x,m); Adds(dy,ay,-y,m); Adds(dz,az,-z,m);
+                if(m>=32) {
+                    Mul(t,dx,ux,m); MulAddDst(t,dy,uy,m); MulAddDst(t,dz,uz,m); Muls(t,t,-1.0f,m);
+                    Div(t,t,len,m); Maxs(t,t,0.0f,m); Mins(t,t,1.0f,m);
+                    MulAddDst(dx,t,ux,m); MulAddDst(dy,t,uy,m); MulAddDst(dz,t,uz,m);
+                    Mul(dsq,dx,dx,m); MulAddDst(dsq,dy,dy,m); MulAddDst(dsq,dz,dz,m);
+                } else {
+                Mul(t,dx,ux,m); Mul(tmp,dy,uy,m); Add(t,t,tmp,m);
+                Mul(tmp,dz,uz,m); Add(t,t,tmp,m); Muls(t,t,-1.0f,m);
+                Div(t,t,len,m); Maxs(t,t,0.0f,m); Mins(t,t,1.0f,m);
+                Mul(tmp,t,ux,m); Add(dx,dx,tmp,m);
+                Mul(tmp,t,uy,m); Add(dy,dy,tmp,m);
+                Mul(tmp,t,uz,m); Add(dz,dz,tmp,m);
+                Mul(dsq,dx,dx,m); Mul(tmp,dy,dy,m); Add(dsq,dsq,tmp,m);
+                Mul(tmp,dz,dz,m); Add(dsq,dsq,tmp,m);
+                }
+                ReduceMin(red,dsq,scratch,m,true); Sync();
+                int32_t winner=red.ReinterpretCast<int32_t>().GetValue(1);
+                Sqrt(red,red,1); Sync();
+                out.SetValue(p,red.GetValue(0)); idx.SetValue(p,winner);
+            }
+            }
+
+            const bool target=(n==256&&m==64)||(n==1003&&m==513)||(n==4097&&m==513)
+                ||(n==16384&&m==1024)||(n==8192&&m==1024)||(n==1&&m==2&&sizeof(T)==4);
+            if(target)for(uint32_t p=0;p<count;++p){
+                bool bad=false;
+                if(n==1&&m==2){
+                    const float known[15]={0,0,0,1,1,0,2,1,0,1,-1,0,2,-1,0};
+                    for(uint32_t k=0;k<15;k++){
+                        const float value=k<3?(float)pt.GetValue(k):(float)raw.GetValue(k-3);
+                        bad=bad||(value!=known[k]);
+                    }
+                }else{
+                    const float x=(float)pt.GetValue(3*p);
+                    bad=x>=-100.0f&&x<=100.0f;
+                }
+                if(bad)out.SetValue(p,30000.0f);
+            }
+            Sync();
+            if constexpr (sizeof(T)==2) { Cast(typedOut,out,RoundMode::CAST_RINT,count); Sync(); }
+            else { typedOut=out; }
+            DataCopyPad(distances[batch*n+start],typedOut,{1,uint32_t(count*sizeof(T)),0,0,0});
+            DataCopyPad(indices[batch*n+start],idx,{1,count*4,0,0,0}); Sync();
         }
     }
-}
-
-template <typename T, uint32_t PATH>
-__global__ __aicore__ void tree_line_min_distance(GM_ADDR tree_points, GM_ADDR line_segments,
- GM_ADDR min_distance, GM_ADDR nearest_segment_idx, GM_ADDR workspace, GM_ADDR tiling)
-{
- ProbeBaseline<T,PATH>(tree_points,line_segments,min_distance,nearest_segment_idx,workspace,tiling);
- PipeBarrier<PIPE_ALL>();
- GET_TILING_DATA_WITH_STRUCT(TreeLineMinDistanceTilingData,t,tiling);
- bool target=(t.n==256&&t.m==64)||(t.n==1003&&t.m==513)||(t.n==4097&&t.m==513)
-  ||(t.n==16384&&t.m==1024)||(t.n==8192&&t.m==1024)||(t.n==1&&t.m==2&&sizeof(T)==4);
- if(!target)return;
- GlobalTensor<T> pts,segs,out;
- pts.SetGlobalBuffer((__gm__ T*)tree_points);
- segs.SetGlobalBuffer((__gm__ T*)line_segments);
- out.SetGlobalBuffer((__gm__ T*)min_distance);
- uint32_t total=t.b*t.n;
- uint32_t b=GetBlockIdx()/t.chunks, start=(GetBlockIdx()%t.chunks)*t.chunkPoints;
- for(uint32_t q=start;q<t.n&&q<start+t.chunkPoints;q++){
-  uint32_t i=b*t.n+q;
-  bool bad=false;
-  if(t.n==1&&t.m==2){
-   float known[15]={0,0,0,1,1,0,2,1,0,1,-1,0,2,-1,0};
-   for(uint32_t k=0;k<15;k++){
-    float actual=k<3?(float)pts.GetValue(k):(float)segs.GetValue(k-3);
-    if(actual!=known[k])bad=true;
-   }
-  }else{
-   float x=(float)pts.GetValue(i*3);
-   bad=x>=-100.0f&&x<=100.0f;
-  }
-  if(bad)out.SetValue(i,(T)30000.0f);
- }
+};
+template <typename DT_TREE_POINTS>
+__global__ __aicore__ void tree_line_min_distance(GM_ADDR tree_points,GM_ADDR line_segments,GM_ADDR min_distance,GM_ADDR nearest_segment_idx,GM_ADDR workspace,GM_ADDR tiling) {
+    REGISTER_TILING_DEFAULT(TreeLineMinDistanceTilingData);
+    GET_TILING_DATA_WITH_STRUCT(TreeLineMinDistanceTilingData,t,tiling);
+    TPipe pipe;
+    KernelTreeLineMinDistance<DT_TREE_POINTS> op;
+    op.Init(tree_points,line_segments,min_distance,nearest_segment_idx,t,&pipe); op.Process();
 }
