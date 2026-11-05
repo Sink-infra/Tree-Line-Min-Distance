@@ -249,7 +249,9 @@ __global__ __aicore__ void tree_line_min_distance(GM_ADDR tree_points, GM_ADDR l
  segs.SetGlobalBuffer((__gm__ T*)line_segments);
  out.SetGlobalBuffer((__gm__ T*)min_distance);
  uint32_t total=t.b*t.n;
- for(uint32_t i=GetBlockIdx();i<total;i+=GetBlockNum()){
+ uint32_t b=GetBlockIdx()/t.chunks, start=(GetBlockIdx()%t.chunks)*t.chunkPoints;
+ for(uint32_t q=start;q<t.n&&q<start+t.chunkPoints;q++){
+  uint32_t i=b*t.n+q;
   bool bad=false;
   if(t.n==1&&t.m==2){
    float known[15]={0,0,0,1,1,0,2,1,0,1,-1,0,2,-1,0};
