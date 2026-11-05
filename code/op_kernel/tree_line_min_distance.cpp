@@ -83,6 +83,13 @@ __global__ __aicore__ void tree_line_min_distance(GM_ADDR tree_points, GM_ADDR l
                                                   GM_ADDR workspace, GM_ADDR tiling)
 {
     REGISTER_TILING_DEFAULT(TreeLineMinDistanceTilingData);
+    if constexpr (PATH >= 221 && PATH <= 226) {
+        GET_TILING_DATA_MEMBER(TreeLineMinDistanceTilingData, n, numPoints, tiling);
+        InitSocState();
+        SmallScalarTwoPoints<DT_TREE_POINTS, PATH - 218>(tree_points, line_segments,
+            min_distance, nearest_segment_idx, numPoints);
+        return;
+    }
     if constexpr (PATH == 252 || PATH == 253) {
         GET_TILING_DATA_WITH_STRUCT(TreeLineMinDistanceTilingData, sharedTiling, tiling);
         {
@@ -197,7 +204,7 @@ __global__ __aicore__ void tree_line_min_distance(GM_ADDR tree_points, GM_ADDR l
     } else if constexpr (PATH >= 98 && PATH <= 99) {
         SinglePoint<DT_TREE_POINTS, PATH - 97, true>(tree_points, line_segments, min_distance, nearest_segment_idx);
     } else if constexpr (PATH >= 120 && PATH <= 125) {
-        SinglePoint<DT_TREE_POINTS, PATH - 117, true>(tree_points, line_segments, min_distance, nearest_segment_idx);
+        SinglePoint<DT_TREE_POINTS, PATH - 117, true, false, true>(tree_points, line_segments, min_distance, nearest_segment_idx);
     } else if constexpr (PATH >= 60 && PATH <= 73) {
         FixedSmallBatch<DT_TREE_POINTS, (PATH - 60) % 7 + 2, (PATH - 60) / 7 + 1>(tree_points, line_segments, min_distance, nearest_segment_idx);
     } else if constexpr (PATH >= 21 && PATH <= 26) {

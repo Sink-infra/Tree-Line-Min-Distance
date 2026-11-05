@@ -85,7 +85,8 @@ __aicore__ inline void SinglePoint(GM_ADDR p, GM_ADDR s, GM_ADDR d, GM_ADDR i)
         if (j == 0 || value < best) { best = value; winner = (int32_t)j; }
     }
     if constexpr (ROOT) {
-        distances.SetValue(0, (T)(TWO_STEPS ? TinyRootTwoSteps(best) : TinyRoot(best)));
+        if constexpr (SEG >= 3) distances.SetValue(0, (T)sqrt(best));
+        else distances.SetValue(0, (T)(TWO_STEPS ? TinyRootTwoSteps(best) : TinyRoot(best)));
         indices.SetValue(0, winner);
         return;
     }

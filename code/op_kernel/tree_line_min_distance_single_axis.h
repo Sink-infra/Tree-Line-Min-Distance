@@ -146,7 +146,7 @@ __aicore__ inline void FusedPointSegments(GM_ADDR p, GM_ADDR s, GM_ADDR d, GM_AD
     Gather(ux, src, off.template ReinterpretCast<uint32_t>(), 12u, m);
 
     uint32_t compactCount = 0;
-    const bool screened = mayScreen && ScreenSingleton(src, off, ax, ux, ay, az, dsq, work,
+    const bool screened = mayScreen && ScreenSingleton<T>(src, off, ax, ux, ay, az, dsq, work,
                                          pair, keep, m, width, px, py, pz,
                                          screenedBest, screenedWinner, compactCount);
     if (mayScreen && !screened) Hop<HardEvent::S_V>();

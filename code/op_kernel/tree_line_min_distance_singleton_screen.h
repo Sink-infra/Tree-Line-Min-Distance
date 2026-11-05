@@ -50,6 +50,7 @@ __aicore__ inline bool SingletonSparseSeed(const LocalTensor<T>& raw, uint32_t m
 
 // The projected segment lies inside its endpoint interval. Roundoff slack
 // expands that interval before it is used as a lower bound.
+template <typename T>
 __aicore__ inline bool ScreenSingleton(const LocalTensor<float>& src,
     const LocalTensor<int32_t>& offsets, const LocalTensor<float>& ax,
     const LocalTensor<float>& cx, const LocalTensor<float>& lo,
@@ -60,19 +61,33 @@ __aicore__ inline bool ScreenSingleton(const LocalTensor<float>& src,
     uint32_t& compactCount)
 {
     if (m < 128) return false;
-    Duplicate(bound, kGuardDist, width);
-    Min(lo, ax, cx, m); Max(hi, ax, cx, m);
-    Adds(lo, lo, -px, m);
-    Muls(hi, hi, -1.0f, m); Adds(hi, hi, px, m);
-    Max(bound, lo, hi, m);
-    Abs(lo, ax, m); Abs(hi, cx, m);
-    Max(lo, lo, hi, m);
-    Maxs(lo, lo, px < 0.0f ? -px : px, m);
-    Muls(lo, lo, 1.0e-5f, m); Adds(lo, lo, 1.0e-5f, m);
-    Sub(bound, bound, lo, m); Maxs(bound, bound, 0.0f, m);
-    Mul(bound, bound, bound, m);
     const float threshold = best * 1.0001f + 1.0e-10f;
-    CompareScalar(mask, bound, threshold, CMPMODE::LE, width);
+    if constexpr (sizeof(T) == 2) {
+        // Each input coordinate is exactly representable in float. Across
+        // the finite half range, the two coordinate subtractions, projected
+        // residual, and radius endpoint rounding cost less than 1/8.
+        const float radius = sqrt(threshold) + 0.125f;
+        const auto highMask = temp.ReinterpretCast<uint8_t>();
+        Min(lo, ax, cx, width);
+        Max(hi, ax, cx, width);
+        CompareScalar(mask, lo, px + radius, CMPMODE::LE, width);
+        CompareScalar(highMask, hi, px - radius, CMPMODE::GE, width);
+        And(mask.ReinterpretCast<uint16_t>(), mask.ReinterpretCast<uint16_t>(),
+            highMask.ReinterpretCast<uint16_t>(), width / 16);
+    } else {
+        Duplicate(bound, kGuardDist, width);
+        Min(lo, ax, cx, m); Max(hi, ax, cx, m);
+        Adds(lo, lo, -px, m);
+        Muls(hi, hi, -1.0f, m); Adds(hi, hi, px, m);
+        Max(bound, lo, hi, m);
+        Abs(lo, ax, m); Abs(hi, cx, m);
+        Max(lo, lo, hi, m);
+        Maxs(lo, lo, px < 0.0f ? -px : px, m);
+        Muls(lo, lo, 1.0e-5f, m); Adds(lo, lo, 1.0e-5f, m);
+        Sub(bound, bound, lo, m); Maxs(bound, bound, 0.0f, m);
+        Mul(bound, bound, bound, m);
+        CompareScalar(mask, bound, threshold, CMPMODE::LE, width);
+    }
     uint64_t kept = 0;
     GatherMask(lo.ReinterpretCast<int32_t>(), offsets, mask.ReinterpretCast<uint32_t>(),
                true, m, {1, 1, 0, 0}, kept);
