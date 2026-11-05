@@ -40,7 +40,7 @@ static_assert(HoistedPointGroupLayout::oPyv + 8 * HoistedPointGroupLayout::kPoin
 static_assert(HoistedPointGroupLayout::oPzv + 8 * HoistedPointGroupLayout::kPoints <= HoistedPointGroupLayout::oPair);
 static_assert(HoistedPointGroupLayout::oArena * sizeof(float) <= 192 * 1024);
 
-template <typename T, uint32_t MODE, bool LARGE = false, bool SHORT = false, bool WIDE = false, bool SPLIT = false, bool BANK = false, bool STRIDED = false, bool AXIS = false, bool HOIST = false, bool NEIGHBOR = false>
+template <typename T, uint32_t MODE, bool LARGE = false, bool SHORT = false, bool WIDE = false, bool SPLIT = false, bool BANK = false, bool STRIDED = false, bool AXIS = false, bool HOIST = false, bool NEIGHBOR = false, bool DIRECT_SHORT = false>
 class KernelPointGroups {
     static constexpr bool COMPACT_WORK = MODE==3 && !LARGE && !SHORT && !WIDE;
     static constexpr uint32_t oDx = COMPACT_WORK ? 9280 : HOIST ? HoistedPointGroupLayout::oDx : (WIDE && BANK && !STRIDED) ? 9280 : STRIDED ? 9216 : WIDE ? 9224 : LARGE ? 9224 : ::oDx;
@@ -121,7 +121,7 @@ public:
         if (mode != 0) {
             BuildScale(scratch, arena[oPtOff], 12.0f, AlignLanes(tilePoints));
         }
-        Duplicate(arena[oNegOne], -1.0f, mAligned);
+        if constexpr (!DIRECT_SHORT) Duplicate(arena[oNegOne], -1.0f, mAligned);
     }
 
     __aicore__ inline void ProcessOne()
@@ -406,9 +406,11 @@ private:
             Duplicate(ux, 0.0f, mAligned);
             Duplicate(uy, 0.0f, mAligned);
             Duplicate(uz, 0.0f, mAligned);
-            Duplicate(kx, 0.0f, mAligned);
-            Duplicate(ky, 0.0f, mAligned);
-            Duplicate(kz, 0.0f, mAligned);
+            if constexpr (!DIRECT_SHORT) {
+                Duplicate(kx, 0.0f, mAligned);
+                Duplicate(ky, 0.0f, mAligned);
+                Duplicate(kz, 0.0f, mAligned);
+            }
         }
         LocalTensor<float> src = arena[oSegRaw];
         if constexpr (sizeof(T) == 2) {
@@ -425,18 +427,23 @@ private:
         Sub(ux, ux, ax, m);
         Sub(uy, uy, ay, m);
         Sub(uz, uz, az, m);
-        Mul(len, ux, ux, m);
-        MulAddDst(len, uy, uy, m);
-        MulAddDst(len, uz, uz, m);
+        if constexpr (DIRECT_SHORT) len = kx;
+        const uint32_t lengthCount = DIRECT_SHORT ? mAligned : m;
+        Mul(len, ux, ux, lengthCount);
+        MulAddDst(len, uy, uy, lengthCount);
+        MulAddDst(len, uz, uz, lengthCount);
         // Exact zero-length test on the quantised value; no division by L = 0.
         LocalTensor<uint8_t> keep = arena[oMask].ReinterpretCast<uint8_t>();
         CompareScalar(keep, len, 0.0f, CMPMODE::NE, mAligned);
         Select(len, keep, len, 1.0f, SELMODE::VSEL_TENSOR_SCALAR_MODE, mAligned);
-        Div(invLen, arena[oNegOne], len, mAligned);
-        // Degenerate segments keep u = 0 exactly, so k = 0 and t clamps to 0.
-        Mul(kx, ux, invLen, m);
-        Mul(ky, uy, invLen, m);
-        Mul(kz, uz, invLen, m);
+        if constexpr (DIRECT_SHORT) {
+            Muls(kx, len, -1.0f, mAligned);
+        } else {
+            Div(invLen, arena[oNegOne], len, mAligned);
+            Mul(kx, ux, invLen, m);
+            Mul(ky, uy, invLen, m);
+            Mul(kz, uz, invLen, m);
+        }
     }
 
 #include "tree_line_min_distance_point_tail.h"
@@ -528,9 +535,16 @@ private:
                     Brcb(pxv, pz, (uint8_t)((span + 7) / 8), {1, 8});
                 }
                 Sub<float, false>(dz, az[seg], pzv, MASK_PLACEHOLDER, reps, spread);
-                Mul<float, false>(tt, dx, kx[seg], MASK_PLACEHOLDER, reps, fold);
-                MulAddDst<float, float, false>(tt, dy, ky[seg], MASK_PLACEHOLDER, reps, fold);
-                MulAddDst<float, float, false>(tt, dz, kz[seg], MASK_PLACEHOLDER, reps, fold);
+                if constexpr (DIRECT_SHORT) {
+                    Mul<float, false>(tt, dx, ux[seg], MASK_PLACEHOLDER, reps, fold);
+                    MulAddDst<float, float, false>(tt, dy, uy[seg], MASK_PLACEHOLDER, reps, fold);
+                    MulAddDst<float, float, false>(tt, dz, uz[seg], MASK_PLACEHOLDER, reps, fold);
+                    Div<float, false>(tt, tt, kx[seg], MASK_PLACEHOLDER, reps, fold);
+                } else {
+                    Mul<float, false>(tt, dx, kx[seg], MASK_PLACEHOLDER, reps, fold);
+                    MulAddDst<float, float, false>(tt, dy, ky[seg], MASK_PLACEHOLDER, reps, fold);
+                    MulAddDst<float, float, false>(tt, dz, kz[seg], MASK_PLACEHOLDER, reps, fold);
+                }
                 Maxs<float, false>(tt, tt, 0.0f, MASK_PLACEHOLDER, reps, clamp);
                 Mins<float, false>(tt, tt, 1.0f, MASK_PLACEHOLDER, reps, clamp);
                 MulAddDst<float, float, false>(dx, tt, ux[seg], MASK_PLACEHOLDER, reps, fold);

@@ -68,10 +68,18 @@ __aicore__ inline bool ScreenSingleton(const LocalTensor<float>& src,
         // residual, and radius endpoint rounding cost less than 1/8.
         const float radius = sqrt(threshold) + 0.125f;
         const auto highMask = temp.ReinterpretCast<uint8_t>();
-        Min(lo, ax, cx, width);
-        Max(hi, ax, cx, width);
-        CompareScalar(mask, lo, px + radius, CMPMODE::LE, width);
-        CompareScalar(highMask, hi, px - radius, CMPMODE::GE, width);
+        const uint8_t repeats = (uint8_t)(width / kLanes);
+        const BinaryRepeatParams binary(1, 1, 1, 8, 8, 8);
+        const UnaryRepeatParams unary(1, 1, 8, 8);
+        SetMaskNorm();
+        SetVectorMask<float>((int32_t)kLanes);
+        Min<float, false>(lo, ax, cx, (uint64_t)kLanes, repeats, binary);
+        Max<float, false>(hi, ax, cx, (uint64_t)kLanes, repeats, binary);
+        CompareScalar<float, uint8_t, false>(mask, lo, px + radius, CMPMODE::LE,
+            (uint64_t)kLanes, repeats, unary);
+        CompareScalar<float, uint8_t, false>(highMask, hi, px - radius, CMPMODE::GE,
+            (uint64_t)kLanes, repeats, unary);
+        ResetMask();
         And(mask.ReinterpretCast<uint16_t>(), mask.ReinterpretCast<uint16_t>(),
             highMask.ReinterpretCast<uint16_t>(), width / 16);
     } else {
