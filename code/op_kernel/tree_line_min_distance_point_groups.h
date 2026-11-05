@@ -1,5 +1,44 @@
 #pragma once
-#include "tree_line_min_distance_hoist_layout.h"
+// UB offsets in FP32 elements, including the conversion and reduction scratch.
+struct HoistedPointGroupLayout {
+    static constexpr uint32_t kPoints = 120;
+    static constexpr uint32_t oDx = 9280;
+    static constexpr uint32_t oDy = 16960;
+    static constexpr uint32_t oDz = 24640;
+    static constexpr uint32_t oTt = 32416;
+    static constexpr uint32_t oDsq = 9280;
+    static constexpr uint32_t oSegOff = 40096;
+    static constexpr uint32_t oPtRaw = 41120;
+    static constexpr uint32_t oPtFlt = 41504;
+    static constexpr uint32_t oPtOff = 41888;
+    static constexpr uint32_t oDiv8 = 42016;
+    static constexpr uint32_t oPx = 42016;
+    static constexpr uint32_t oPy = 42144;
+    static constexpr uint32_t oPz = 42272;
+    static constexpr uint32_t oPxv = 42400;
+    static constexpr uint32_t oPyv = 43360;
+    static constexpr uint32_t oPzv = 44320;
+    static constexpr uint32_t oPair = 45280;
+    static constexpr uint32_t oCmin = 45536;
+    static constexpr uint32_t oCidx = 45664;
+    static constexpr uint32_t oBest = 45792;
+    static constexpr uint32_t oFidx = 45920;
+    static constexpr uint32_t oRes = 46048;
+    static constexpr uint32_t oRedW = 46048;
+    static constexpr uint32_t oDist = 46048;
+    static constexpr uint32_t oIdx = 46176;
+    static constexpr uint32_t oHalf = 46304;
+    static constexpr uint32_t oMask = 46368;
+    static constexpr uint32_t oArena = 46432;
+};
+static_assert(HoistedPointGroupLayout::oDx + 64 * HoistedPointGroupLayout::kPoints <= HoistedPointGroupLayout::oDy);
+static_assert(HoistedPointGroupLayout::oDy + 64 * HoistedPointGroupLayout::kPoints <= HoistedPointGroupLayout::oDz);
+static_assert(HoistedPointGroupLayout::oDz + 64 * HoistedPointGroupLayout::kPoints <= HoistedPointGroupLayout::oTt);
+static_assert(HoistedPointGroupLayout::oTt + 64 * HoistedPointGroupLayout::kPoints <= HoistedPointGroupLayout::oSegOff);
+static_assert(HoistedPointGroupLayout::oPxv + 8 * HoistedPointGroupLayout::kPoints <= HoistedPointGroupLayout::oPyv);
+static_assert(HoistedPointGroupLayout::oPyv + 8 * HoistedPointGroupLayout::kPoints <= HoistedPointGroupLayout::oPzv);
+static_assert(HoistedPointGroupLayout::oPzv + 8 * HoistedPointGroupLayout::kPoints <= HoistedPointGroupLayout::oPair);
+static_assert(HoistedPointGroupLayout::oArena * sizeof(float) <= 192 * 1024);
 
 template <typename T, uint32_t MODE, bool LARGE = false, bool SHORT = false, bool WIDE = false, bool SPLIT = false, bool BANK = false, bool STRIDED = false, bool AXIS = false, bool HOIST = false>
 class KernelPointGroups {
@@ -367,6 +406,8 @@ private:
         Mul(kz, uz, invLen, m);
     }
 
+#include "tree_line_min_distance_point_tail.h"
+
     // Blocked lanes: one call spans a whole group of points against the same
     // 64-segment window, so the fixed cost of issuing a vector instruction is
     // paid once per group instead of once per point.
@@ -395,10 +436,10 @@ private:
 
         // One point per 32B block of the expanded coordinate, so the blocked
         // calls below read it with a zero block stride.
-        const BinaryRepeatParams spread(1, 1, 0, STRIDED ? 16 : 8, 0, 1);
-        const BinaryRepeatParams fold(1, 1, 1, STRIDED ? 16 : 8, STRIDED ? 16 : 8, 0);
-        const BinaryRepeatParams plain(1, 1, 1, STRIDED ? 16 : 8, STRIDED ? 16 : 8, STRIDED ? 16 : 8);
-        const UnaryRepeatParams clamp(1, 1, STRIDED ? 16 : 8, STRIDED ? 16 : 8);
+        const BinaryRepeatParams spread(1, 1, 0, 8, 0, 1);
+        const BinaryRepeatParams fold(1, 1, 1, 8, 8, 0);
+        const BinaryRepeatParams plain(1, 1, 1, 8, 8, 8);
+        const UnaryRepeatParams clamp(1, 1, 8, 8);
 
         for (uint32_t done = 0; done < count; done += group) {
             uint32_t span = count - done;
@@ -422,7 +463,12 @@ private:
                 Duplicate(bidx, 0.0f, carry);
             }
 
-            for (uint32_t r = 0; r < (SHORT ? 1u : mRepeat); ++r) {
+            uint32_t blockedWindows=mRepeat;
+            if constexpr (STRIDED) {
+                const uint32_t tail=m%kLanes;
+                if (tail>0 && tail<=2) blockedWindows=m/kLanes;
+            }
+            for (uint32_t r = 0; r < (SHORT ? 1u : blockedWindows); ++r) {
                 const uint32_t seg = r * kLanes;
                 SetVectorMask<float>((int32_t)kLanes);
                 if constexpr (WIDE && !STRIDED && !HOIST) {
@@ -460,7 +506,7 @@ private:
                 }
                 ResetMask();
                 // Each repeat holds one point against this segment window.
-                WholeReduceMin(pair, dsq, (int32_t)kLanes, (int32_t)reps, 1, 1, STRIDED ? 16 : 8);
+                WholeReduceMin(pair, dsq, (int32_t)kLanes, (int32_t)reps, 1, 1, 8);
                 uint64_t kept = 0;
                 GatherMask(cmin, pair, (uint8_t)1, false, 0, {1, pairRepeats, 8, 8}, kept);
                 GatherMask(cidx, pair, (uint8_t)2, false, 0, {1, pairRepeats, 8, 8}, kept);
@@ -474,6 +520,9 @@ private:
                 Min(best, best, cmin, carry);
                 Select(bidx, keep, bidx, pair, SELMODE::VSEL_TENSOR_TENSOR_MODE, carry);
                 }
+            }
+            if constexpr (STRIDED) {
+                if (blockedWindows<mRepeat) TailLanes(span,blockedWindows*kLanes);
             }
             if constexpr (SHORT) {
                 Sqrt(dist, cmin, span);

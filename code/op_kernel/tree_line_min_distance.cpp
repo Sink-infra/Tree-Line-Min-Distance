@@ -83,13 +83,13 @@ __global__ __aicore__ void tree_line_min_distance(GM_ADDR tree_points, GM_ADDR l
                                                   GM_ADDR workspace, GM_ADDR tiling)
 {
     REGISTER_TILING_DEFAULT(TreeLineMinDistanceTilingData);
-    if constexpr (PATH == 252) {
+    if constexpr (PATH == 252 || PATH == 253) {
         GET_TILING_DATA_WITH_STRUCT(TreeLineMinDistanceTilingData, sharedTiling, tiling);
         {
             TPipe sharedPipe;
             TBuf<TPosition::VECCALC> sharedStorage;
             sharedPipe.InitBuffer(sharedStorage, SharedGridSearch::kArenaBytes);
-            SharedGridSearch::Search<DT_TREE_POINTS> search;
+            SharedGridSearch::Search<DT_TREE_POINTS,PATH == 253> search;
             if (search.Run(tree_points,line_segments,min_distance,nearest_segment_idx,
                            GetUserWorkspace(workspace),sharedTiling)) return;
         }

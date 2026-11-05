@@ -37,8 +37,13 @@ __aicore__ inline void Historical(GM_ADDR p, GM_ADDR s, GM_ADDR d, GM_ADDR i,
     }
 }
 
-template <typename T>
+template <typename T, bool FINE = false>
 class Search {
+    static constexpr uint32_t kCells = FINE ? 128 : 64;
+    static constexpr uint32_t kValid = FINE ? 65 : 64;
+    static constexpr uint32_t kPacked = FINE ? 66 : 65;
+    static constexpr uint32_t kBound = FINE ? 67 : 66;
+    static constexpr uint32_t kFinal = FINE ? 68 : 67;
     GlobalTensor<T> points, segments, distances;
     GlobalTensor<float> work;
     GlobalTensor<int32_t> indices;
@@ -55,18 +60,25 @@ class Search {
     __aicore__ inline uint64_t Stream(uint32_t source, uint32_t field, uint32_t offset = 0)
     { return ((uint64_t)source * 6 + field) * capacity + offset; }
     __aicore__ inline uint32_t Entry(uint32_t source, uint32_t cell)
-    { return Meta().GetValue(source * kMeta + cell); }
+    {
+        if constexpr (FINE) {
+            auto starts=Meta().template ReinterpretCast<uint16_t>();
+            const uint32_t first=starts.GetValue(source*kMeta*2+cell);
+            const uint32_t end=starts.GetValue(source*kMeta*2+cell+1);
+            return (first<<12)|(end-first);
+        } else return Meta().GetValue(source*kMeta+cell);
+    }
     __aicore__ inline bool BatchValid(bool final = false)
     {
         DataCopyPad(Meta(), metadata, {1, blocks * kMeta * 4, 0, 0, 0}, {false, 0, 0, 0});
         Hop<HardEvent::MTE2_S>();
         for (uint32_t q = batch*t.chunks; q < (batch+1)*t.chunks; ++q)
-            if (Meta().GetValue(q * kMeta + (final ? 67 : 64)) == 0) return false;
+            if (Meta().GetValue(q * kMeta + (final ? kFinal : kValid)) == 0) return false;
         return true;
     }
     __aicore__ inline void SaveMeta(bool valid, bool final = false)
     {
-        SelfMeta().SetValue(final ? 67 : 64, valid ? 1u : 0u);
+        SelfMeta().SetValue(final ? kFinal : kValid, valid ? 1u : 0u);
         Hop<HardEvent::S_MTE3>();
         DataCopyPad(metadata[owner * kMeta], SelfMeta(), {1, kMeta * 4, 0, 0, 0});
     }
@@ -109,7 +121,7 @@ class Search {
             low[axis] = pair.GetValue(axis * 16);
             const float high = pair.GetValue(axis * 16 + 8), length = high - low[axis];
             valid = valid && length > 1.0e-6f && length < 1.0e10f;
-            step[axis] = length * 0.25f;
+            step[axis] = length * (FINE && axis == 2 ? 0.125f : 0.25f);
             extent = length > extent ? length : extent;
             const float a = low[axis] < 0.0f ? -low[axis] : low[axis];
             const float z = high < 0.0f ? -high : high;
@@ -143,7 +155,7 @@ class Search {
     __aicore__ inline void RestoreOrder()
     {
         if (owned==0) return;
-        const uint32_t packed=Meta().GetValue(owner*kMeta+65);
+        const uint32_t packed=Meta().GetValue(owner*kMeta+kPacked);
         auto packedD=F(61440,3840), packedI=F(76800,3840);
         auto inverse=F(92160,kPoints).ReinterpretCast<uint32_t>();
         DataCopyPad(packedD,work[Stream(owner,3)],{1,packed*4,0,0,0},{false,0,0,0});
@@ -183,21 +195,21 @@ public:
         pointBound=0.0f;
         const bool valid=PrepareSegments()&&PackPoints();
         union FloatBits {float f;uint32_t u;} bound;bound.f=pointBound;
-        SelfMeta().SetValue(66,bound.u);
+        SelfMeta().SetValue(kBound,bound.u);
         SaveMeta(valid);
         PipeBarrier<PIPE_ALL>();SyncAll();
         const bool gridReady=BatchValid();
         if (!gridReady) {
             bool anyPrepared=false;
             for (uint32_t q=0;q<blocks;++q)
-                anyPrepared=anyPrepared||Meta().GetValue(q*kMeta+64)!=0;
+                anyPrepared=anyPrepared||Meta().GetValue(q*kMeta+kValid)!=0;
             if (!anyPrepared) return false;
         }
         bool complete=true;
         if (gridReady) {
             PrepareSegments();
             for (uint32_t q=0;q<t.chunks;++q) {
-                bound.u=Meta().GetValue((batch*t.chunks+q)*kMeta+66);
+                bound.u=Meta().GetValue((batch*t.chunks+q)*kMeta+kBound);
                 pointBound=bound.f>pointBound?bound.f:pointBound;
             }
             margin=0.00000762939453125f*(coordinate+pointBound+extent)+0.0001f;
@@ -209,7 +221,7 @@ public:
             PipeBarrier<PIPE_ALL>();
             Duplicate(F(185344,72),0.0f,72);
             Hop<HardEvent::V_S>();
-            SelfMeta().SetValue(64,valid?1u:0u);
+            SelfMeta().SetValue(kValid,valid?1u:0u);
         }
         SaveMeta(complete,true);
         PipeBarrier<PIPE_ALL>();SyncAll();

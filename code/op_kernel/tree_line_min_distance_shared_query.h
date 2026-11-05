@@ -6,9 +6,10 @@
         auto other=F(164608), near=F(98304);
         Duplicate(enter,0.0f,wideM);Duplicate(exit,1.0f,wideM);
         for (uint32_t axis = 0; axis < 3; ++axis) {
-            const uint32_t at = (cell >> (axis * 2)) & 3;
+            const uint32_t last = FINE && axis == 2 ? 7u : 3u;
+            const uint32_t at = (cell >> (axis * 2)) & last;
             const float left = at == 0 ? -kGuardCoord : low[axis] + at * step[axis] - radius - margin;
-            const float right = at == 3 ? kGuardCoord : low[axis] + (at + 1) * step[axis] + radius + margin;
+            const float right = at == last ? kGuardCoord : low[axis] + (at + 1) * step[axis] + radius + margin;
             auto start=F(axis*4096), inverse=F(36864+axis*4096);
             Adds(endpoint,start,-left,wideM);Mul(endpoint,endpoint,inverse,wideM);
             Adds(other,start,-right,wideM);Mul(other,other,inverse,wideM);
@@ -127,7 +128,7 @@
         }
         stored=true;
     }
-    __aicore__ inline bool QueryCells()
+    __aicore__ inline bool QueryHistorical()
     {
         bool valid=true;
         for (uint32_t ordinal=owner%t.chunks;ordinal<64;ordinal+=t.chunks) {
@@ -158,4 +159,49 @@
             valid=valid&&certified;
         }
         return valid;
+    }
+
+    __aicore__ inline bool QueryCells()
+    {
+        if constexpr (!FINE) return QueryHistorical();
+        else {
+        bool valid=true;
+        for (uint32_t ordinal=owner%t.chunks;ordinal<kCells;ordinal+=t.chunks) {
+            const uint32_t x=(ordinal&1u)|((ordinal>>2)&2u);
+            const uint32_t y=((ordinal>>1)&1u)|((ordinal>>3)&2u);
+            const uint32_t z=((ordinal>>2)&1u)|((ordinal>>4)&2u)|(FINE?((ordinal>>4)&4u):0u);
+            const uint32_t cell=x|(y<<2)|(z<<4);
+            uint32_t total=0;
+            for (uint32_t q=0;q<t.chunks;++q) total+=Round8(Entry(batch*t.chunks+q,cell)&4095u);
+            if (total==0) continue;
+            float radius=extent*0.1f;
+            bool certified=false,firstPass=false;
+            uint32_t retryCount=0;
+            auto retries=F(186368,320).ReinterpretCast<uint32_t>();
+            static_assert(320*kGroup>=16384+7*40);
+            static_assert(186368+320*4<=kArenaBytes);
+            for (uint32_t attempt=0;attempt<2;++attempt) {
+                if (stored) Hop<HardEvent::MTE3_V>();
+                const uint32_t candidates=PrepareCandidates(cell,radius);
+                if (candidates==0) {radius=4.0f*(coordinate+pointBound+extent);continue;}
+                float maximum=0.0f;
+                const bool partial=attempt!=0 && firstPass;
+                const uint32_t groups=partial?retryCount:(total+kGroup-1)/kGroup;
+                for (uint32_t group=0;group<groups;++group) {
+                    const uint32_t at=partial?retries.GetValue(group):group*kGroup;
+                    const uint32_t span=total-at<kGroup?total-at:kGroup;
+                    LoadGroup(cell,at,span);
+                    const float value=ComputeGroup(span,candidates);
+                    if (attempt==0 && value>radius) retries.SetValue(retryCount++,at);
+                    maximum=value>maximum?value:maximum;
+                    StoreGroup(cell,at,span);
+                }
+                if (attempt==0) firstPass=true;
+                if (maximum<=radius) {certified=true;break;}
+                radius=maximum+margin;
+            }
+            valid=valid&&certified;
+        }
+        return valid;
+            }
     }

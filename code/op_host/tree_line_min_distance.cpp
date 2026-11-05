@@ -159,8 +159,9 @@ static ge::graphStatus TilingFunc(gert::TilingContext *context) {
     if (mode == 3 && m >= 128 && chunkPoints >= 768 && chunkPoints <= 3328 &&
         tasks <= cores && tasks <= 40 &&
         context->SetScheduleMode(1) == ge::GRAPH_SUCCESS) PATH = 252;
+    if (PATH == 252 && chunkPoints >= 1536) PATH = 253;
     ASCENDC_TPL_SEL_PARAM(context,DT_TREE_POINTS,PATH);
-    context->GetWorkspaceSizes(1)[0]=PATH==252 ? platform.GetLibApiWorkSpaceSize() + (uint64_t)tasks*(6*((chunkPoints+7)/8*8+512)*4+72*4) : 0;
+    context->GetWorkspaceSizes(1)[0]=(PATH==252 || PATH==253) ? platform.GetLibApiWorkSpaceSize() + (uint64_t)tasks*(6*((chunkPoints+7)/8*8+512)*4+72*4) : 0;
     return ge::GRAPH_SUCCESS;
 }
 IMPL_OP_OPTILING(TreeLineMinDistance).Tiling(TilingFunc);
