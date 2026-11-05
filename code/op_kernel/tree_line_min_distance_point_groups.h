@@ -40,7 +40,7 @@ static_assert(HoistedPointGroupLayout::oPyv + 8 * HoistedPointGroupLayout::kPoin
 static_assert(HoistedPointGroupLayout::oPzv + 8 * HoistedPointGroupLayout::kPoints <= HoistedPointGroupLayout::oPair);
 static_assert(HoistedPointGroupLayout::oArena * sizeof(float) <= 192 * 1024);
 
-template <typename T, uint32_t MODE, bool LARGE = false, bool SHORT = false, bool WIDE = false, bool SPLIT = false, bool BANK = false, bool STRIDED = false, bool AXIS = false, bool HOIST = false>
+template <typename T, uint32_t MODE, bool LARGE = false, bool SHORT = false, bool WIDE = false, bool SPLIT = false, bool BANK = false, bool STRIDED = false, bool AXIS = false, bool HOIST = false, bool NEIGHBOR = false>
 class KernelPointGroups {
     static constexpr bool COMPACT_WORK = MODE==3 && !LARGE && !SHORT && !WIDE;
     static constexpr uint32_t oDx = COMPACT_WORK ? 9280 : HOIST ? HoistedPointGroupLayout::oDx : (WIDE && BANK && !STRIDED) ? 9280 : STRIDED ? 9216 : WIDE ? 9224 : LARGE ? 9224 : ::oDx;
@@ -412,8 +412,13 @@ private:
     // Blocked lanes: one call spans a whole group of points against the same
     // 64-segment window, so the fixed cost of issuing a vector instruction is
     // paid once per group instead of once per point.
+#include "tree_line_min_distance_neighbor_seed.h"
+
     __aicore__ inline void BlockedLanes(uint32_t batch, uint32_t start, uint32_t count)
     {
+        if constexpr (NEIGHBOR) {
+            if (TryNeighborSeed(batch, start, count)) return;
+        }
         LocalTensor<T> raw = arena[oPtRaw].template ReinterpretCast<T>();
         LocalTensor<float> src = arena[oPtRaw];
         if constexpr (sizeof(T) == 2) {

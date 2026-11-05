@@ -83,7 +83,6 @@ __aicore__ inline void Visit(uint32_t cell, const LocalTensor<int32_t>& heads,
 
 #include "tree_line_min_distance_spatial_prepare.h"
 #include "tree_line_min_distance_spatial_vector.h"
-#include "tree_line_min_distance_spatial_bounds.h"
 
 }
 #include "tree_line_min_distance_planar.h"

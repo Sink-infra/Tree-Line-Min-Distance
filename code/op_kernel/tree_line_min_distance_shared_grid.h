@@ -151,7 +151,6 @@ class Search {
         return true;
     }
 #include "tree_line_min_distance_shared_pack.h"
-#include "tree_line_min_distance_shared_point_compaction.h"
 #include "tree_line_min_distance_shared_query.h"
     __aicore__ inline void RestoreOrder()
     {

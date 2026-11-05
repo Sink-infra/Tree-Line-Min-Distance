@@ -1,5 +1,7 @@
 #pragma once
 
+#include "tree_line_min_distance_singleton_screen.h"
+
 template <typename T>
 __aicore__ inline void SingleSegmentTask(GM_ADDR p, GM_ADDR s, GM_ADDR d, GM_ADDR i,
                                         const TreeLineMinDistanceTilingData &t)
@@ -130,6 +132,9 @@ __aicore__ inline void FusedPointSegments(GM_ADDR p, GM_ADDR s, GM_ADDR d, GM_AD
     }
     Hop<HardEvent::MTE2_S>();
     const float px = (float)pt.GetValue(0), py = (float)pt.GetValue(1), pz = (float)pt.GetValue(2);
+    float screenedBest = kGuardDist;
+    int32_t screenedWinner = 0;
+    const bool mayScreen = m >= 128 && SingletonSparseSeed(raw, m, px, py, pz, screenedBest, screenedWinner);
     Hop<HardEvent::MTE2_V>();
     LocalTensor<float> src = raw.template ReinterpretCast<float>();
     if constexpr (sizeof(T) == 2) {
@@ -138,9 +143,18 @@ __aicore__ inline void FusedPointSegments(GM_ADDR p, GM_ADDR s, GM_ADDR d, GM_AD
         PipeBarrier<PIPE_V>();
     }
     Gather(ax, src, off.template ReinterpretCast<uint32_t>(), 0u, m);
+    Gather(ux, src, off.template ReinterpretCast<uint32_t>(), 12u, m);
+
+    const bool screened = mayScreen && ScreenSingleton(src, off, ax, ux, ay, az, dsq, work,
+                                         pair, keep, m, width, px, py, pz,
+                                         screenedBest, screenedWinner);
+    if (mayScreen && !screened) Hop<HardEvent::S_V>();
+    if (screened) {
+        pair.SetValue(0, screenedBest);
+        idx.SetValue(0, screenedWinner);
+    } else {
     Gather(ay, src, off.template ReinterpretCast<uint32_t>(), 4u, m);
     Gather(az, src, off.template ReinterpretCast<uint32_t>(), 8u, m);
-    Gather(ux, src, off.template ReinterpretCast<uint32_t>(), 12u, m);
     Gather(uy, src, off.template ReinterpretCast<uint32_t>(), 16u, m);
     Gather(uz, src, off.template ReinterpretCast<uint32_t>(), 20u, m);
     Sub(ux, ux, ax, m); Sub(uy, uy, ay, m); Sub(uz, uz, az, m);
@@ -158,8 +172,11 @@ __aicore__ inline void FusedPointSegments(GM_ADDR p, GM_ADDR s, GM_ADDR d, GM_AD
     Mul(dsq, ax, ax, width);
     MulAddDst(dsq, ay, ay, width); MulAddDst(dsq, az, az, width);
     ReduceMin(pair, dsq, work, width, true);
-    Hop<HardEvent::V_S>();
-    idx.SetValue(0, pair.template ReinterpretCast<int32_t>().GetValue(1));
+    }
+    if (!screened) {
+        Hop<HardEvent::V_S>();
+        idx.SetValue(0, pair.template ReinterpretCast<int32_t>().GetValue(1));
+    }
     Hop<HardEvent::S_V>();
     Sqrt(pair, pair, 1);
     if constexpr (sizeof(T) == 2) {
