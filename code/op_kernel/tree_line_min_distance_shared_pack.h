@@ -40,7 +40,7 @@
             Adds(F(93184, kPoints), F(39936 + axis * kPoints * 4, kPoints), -low[axis], wide);
             Muls(F(93184, kPoints), F(93184, kPoints), 1.0f / step[axis], wide);
             Maxs(F(93184, kPoints), F(93184, kPoints), 0.0f, wide);
-            Mins(F(93184, kPoints), F(93184, kPoints), 3.0f, wide);
+            Mins(F(93184, kPoints), F(93184, kPoints), FINE && axis == 2 ? 7.0f : 3.0f, wide);
             Cast(F(106496, kPoints).ReinterpretCast<int32_t>(), F(93184, kPoints), RoundMode::CAST_FLOOR, wide);
             Cast(F(93184, kPoints), F(106496, kPoints).ReinterpretCast<int32_t>(), RoundMode::CAST_NONE, wide);
             Muls(F(93184, kPoints), F(93184, kPoints), (float)(int32_t)(1u << (axis * 2)), wide);
@@ -59,7 +59,7 @@
         Extract(cells,order,sorted,wide/32);
         Hop<HardEvent::V_S>();
         uint32_t cursor=0;
-        for (uint32_t cell=0;cell<64;++cell) {
+        for (uint32_t cell=0;cell<kCells;++cell) {
             const uint32_t start=cursor;
             uint32_t left=cursor,right=owned;
             const float key=-(float)(int32_t)cell;
@@ -69,8 +69,10 @@
                 else right=middle;
             }
             cursor=left;
-            SelfMeta().SetValue(cell,(start<<12)|(cursor-start));
+            if constexpr (FINE) SelfMeta().template ReinterpretCast<uint16_t>().SetValue(cell,(uint16_t)start);
+            else SelfMeta().SetValue(cell,(start<<12)|(cursor-start));
         }
+        if constexpr (FINE) SelfMeta().template ReinterpretCast<uint16_t>().SetValue(kCells,(uint16_t)cursor);
         if (cursor!=owned) return false;
         Hop<HardEvent::S_V>();
         Cast(cells,order.ReinterpretCast<int32_t>(),RoundMode::CAST_NONE,wide);
@@ -82,7 +84,7 @@
         Cast(cells,inverse.ReinterpretCast<int32_t>(),RoundMode::CAST_NONE,wide);
         Muls(cells,cells,4.0f,wide);
         Cast(inverse.ReinterpretCast<int32_t>(),cells,RoundMode::CAST_RINT,wide);
-        SelfMeta().SetValue(65,owned);
+        SelfMeta().SetValue(kPacked,owned);
         Hop<HardEvent::S_V>();
         Cast(cells,order.ReinterpretCast<int32_t>(),RoundMode::CAST_NONE,wide);
         Muls(cells,cells,4.0f,wide);
