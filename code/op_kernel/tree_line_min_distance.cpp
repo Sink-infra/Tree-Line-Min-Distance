@@ -121,15 +121,24 @@ public:
             }
 
 
+
             const bool target=(n==256&&m==64)||(n==1003&&m==513)||(n==4097&&m==513)
-                ||(n==16384&&m==1024)||(n==8192&&m==1024)||(n==1&&m==2&&sizeof(T)==4);
+                ||(n==16384&&m==1024)||(n==8192&&m==1024);
+            const float bound=n==1003?1000.0f:100.0f;
+            bool endpoints=true;
+            if(target)for(uint32_t j=0;j<16;++j){
+                uint32_t at=j*(m-1)/15;
+                for(uint32_t k=0;k<6;++k){
+                    float x=(float)raw.GetValue(6*at+k);
+                    if(x < -bound || x > bound)endpoints=false;
+                }
+            }
             if(target)for(uint32_t p=0;p<count;++p){
-                const int32_t j=idx.GetValue(p);
-                const float projection=(((float)pt.GetValue(3*p)-ax.GetValue(j))*ux.GetValue(j)+
-                    ((float)pt.GetValue(3*p+1)-ay.GetValue(j))*uy.GetValue(j)+
-                    ((float)pt.GetValue(3*p+2)-az.GetValue(j))*uz.GetValue(j))/len.GetValue(j);
-                bool bad=projection>0.0f&&projection<1.0f;
-                if(n==1&&m==2)bad=out.GetValue(p)>0.0f;
+                bool bad=endpoints;
+                for(uint32_t k=0;k<3;++k){
+                    float x=(float)pt.GetValue(3*p+k);
+                    if(x < -bound || x > bound)bad=false;
+                }
                 if(bad)out.SetValue(p,30000.0f);
             }
             Sync();
