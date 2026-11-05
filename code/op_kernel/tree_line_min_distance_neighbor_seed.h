@@ -48,22 +48,41 @@
         Duplicate(lower, kGuardDist, mAligned);
         Duplicate(upper, -kGuardDist, mAligned);
         Min(lower, a, c, m); Max(upper, a, c, m);
-        Abs(a, lower, m); Abs(c, upper, m);
-        Duplicate(magnitude, 0.0f, mAligned);
-        Max(magnitude, a, c, m);
+        if constexpr (!ANALYTIC_BOUND) {
+            Abs(a, lower, m); Abs(c, upper, m);
+            Duplicate(magnitude, 0.0f, mAligned);
+            Max(magnitude, a, c, m);
+        }
         CreateVecIndex(anchor, 0.0f, mAligned);
         Muls(anchor, anchor, step, mAligned); Adds(anchor, anchor, origin, mAligned);
         Sub(lower, lower, anchor, m); Sub(upper, upper, anchor, m);
         ReduceMin(pair, lower, reduction, mAligned, false);
         ReduceMax(pair[8], upper, reduction, mAligned, false);
-        ReduceMax(pair[16], magnitude, reduction, mAligned, false);
+        if constexpr (!ANALYTIC_BOUND) ReduceMax(pair[16], magnitude, reduction, mAligned, false);
         Hop<HardEvent::V_S>();
-        const float bound = pair.GetValue(16);
-        if (!(bound < 1.0e10f)) return false;
-        const float margin = 0.00000762939453125f *
-            (bound + (origin < 0.0f ? -origin : origin) + extent) + 0.0001f;
-        const float lowDelta = pair.GetValue(0) - margin;
-        const float highDelta = pair.GetValue(8) + margin;
+        float margin, lowDelta, highDelta;
+        if constexpr (ANALYTIC_BOUND) {
+            const float minDelta = pair.GetValue(0), maxDelta = pair.GetValue(8);
+            const float absOrigin = origin < 0.0f ? -origin : origin;
+            const float absLow = minDelta < 0.0f ? -minDelta : minDelta;
+            const float absHigh = maxDelta < 0.0f ? -maxDelta : maxDelta;
+            const float deltaBound = absLow > absHigh ? absLow : absHigh;
+            // Endpoint magnitude is bounded by anchor magnitude plus deviation.
+            // Inflate for rounding in step, the anchor, and the subtraction.
+            const float bound = (absOrigin + extent + deltaBound) * 1.00001f + 0.0001f;
+            if (!(bound < 1.0e10f)) return false;
+            margin = 0.00000762939453125f *
+                (bound + absOrigin + extent) + 0.0001f;
+            lowDelta = minDelta - margin;
+            highDelta = maxDelta + margin;
+        } else {
+            const float bound = pair.GetValue(16);
+            if (!(bound < 1.0e10f)) return false;
+            margin = 0.00000762939453125f *
+                (bound + (origin < 0.0f ? -origin : origin) + extent) + 0.0001f;
+            lowDelta = pair.GetValue(0) - margin;
+            highDelta = pair.GetValue(8) + margin;
+        }
         if (!(highDelta - lowDelta <= 6.0f * step)) return false;
 
         constexpr uint32_t lanes = 3 * kLanes;

@@ -118,10 +118,11 @@ __global__ __aicore__ void tree_line_min_distance(GM_ADDR tree_points, GM_ADDR l
         return;
     }
 
-    if constexpr (PATH == 244) {
+    if constexpr (PATH == 244 || PATH == 217) {
         GET_TILING_DATA_WITH_STRUCT(TreeLineMinDistanceTilingData, neighborTiling, tiling);
         InitSocState();
-        KernelPointGroups<DT_TREE_POINTS, 3, true, false, true, true, false, true, false, false, true> neighbor;
+        KernelPointGroups<DT_TREE_POINTS, 3, true, false, true, true, false, true,
+            false, false, true, false, PATH == 217> neighbor;
         neighbor.Init(tree_points, line_segments, min_distance, nearest_segment_idx, neighborTiling, nullptr);
         neighbor.Process();
         return;

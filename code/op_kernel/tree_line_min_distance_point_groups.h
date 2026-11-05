@@ -40,7 +40,7 @@ static_assert(HoistedPointGroupLayout::oPyv + 8 * HoistedPointGroupLayout::kPoin
 static_assert(HoistedPointGroupLayout::oPzv + 8 * HoistedPointGroupLayout::kPoints <= HoistedPointGroupLayout::oPair);
 static_assert(HoistedPointGroupLayout::oArena * sizeof(float) <= 192 * 1024);
 
-template <typename T, uint32_t MODE, bool LARGE = false, bool SHORT = false, bool WIDE = false, bool SPLIT = false, bool BANK = false, bool STRIDED = false, bool AXIS = false, bool HOIST = false, bool NEIGHBOR = false, bool DIRECT_SHORT = false>
+template <typename T, uint32_t MODE, bool LARGE = false, bool SHORT = false, bool WIDE = false, bool SPLIT = false, bool BANK = false, bool STRIDED = false, bool AXIS = false, bool HOIST = false, bool NEIGHBOR = false, bool DIRECT_SHORT = false, bool ANALYTIC_BOUND = false>
 class KernelPointGroups {
     static constexpr bool COMPACT_WORK = MODE==3 && !LARGE && !SHORT && !WIDE;
     static constexpr uint32_t oDx = COMPACT_WORK ? 9280 : HOIST ? HoistedPointGroupLayout::oDx : (WIDE && BANK && !STRIDED) ? 9280 : STRIDED ? 9216 : WIDE ? 9224 : LARGE ? 9224 : ::oDx;

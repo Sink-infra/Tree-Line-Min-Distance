@@ -172,6 +172,7 @@ static ge::graphStatus TilingFunc(gert::TilingContext *context) {
     if (dtype == ge::DT_FLOAT && PATH >= 90 && PATH <= 95 && b == 1 &&
         chunkPoints == 2 && tilePoints == 2 && tasks <= cores) PATH = 218 + m;
     if (PATH == 80 && dtype == ge::DT_FLOAT16 && group <= 8) PATH = 220;
+    if (PATH == 244 && dtype == ge::DT_FLOAT) PATH = 217;
     ASCENDC_TPL_SEL_PARAM(context,DT_TREE_POINTS,PATH);
     context->GetWorkspaceSizes(1)[0]=(PATH==252 || PATH==253) ? platform.GetLibApiWorkSpaceSize() + (uint64_t)tasks*(6*((chunkPoints+7)/8*8+512)*4+72*4) : 0;
     return ge::GRAPH_SUCCESS;
