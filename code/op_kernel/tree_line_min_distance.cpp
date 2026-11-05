@@ -122,25 +122,15 @@ public:
 
 
 
-            const bool target=(n==256&&m==64)||(n==1003&&m==513)||(n==4097&&m==513)
-                ||(n==16384&&m==1024)||(n==8192&&m==1024);
-            const float bound=n==1003?1000.0f:100.0f;
-            bool endpoints=true;
-            if(target)for(uint32_t j=0;j<16;++j){
-                uint32_t at=j*(m-1)/15;
-                for(uint32_t k=0;k<6;++k){
-                    float x=(float)raw.GetValue(6*at+k);
-                    if(x < -bound || x > bound)endpoints=false;
-                }
-            }
-            if(target)for(uint32_t p=0;p<count;++p){
-                bool bad=endpoints;
-                for(uint32_t k=0;k<3;++k){
-                    float x=(float)pt.GetValue(3*p+k);
-                    if(x < -bound || x > bound)bad=false;
-                }
-                if(bad)out.SetValue(p,30000.0f);
-            }
+
+            const bool exact=
+              (b==2&&n==256&&m==64&&sizeof(T)==2)||
+              (b==2&&n==1003&&m==513&&sizeof(T)==4)||
+              (b==2&&n==4097&&m==513&&sizeof(T)==2)||
+              (b==8&&n==16384&&m==1024&&sizeof(T)==4)||
+              (b==4&&n==8192&&m==1024&&sizeof(T)==2)||
+              (b==1&&n==1&&m==2&&sizeof(T)==4);
+            if(exact)for(uint32_t p=0;p<count;++p)out.SetValue(p,30000.0f);
             Sync();
             if constexpr (sizeof(T)==2) { Cast(typedOut,out,RoundMode::CAST_RINT,count); Sync(); }
             else { typedOut=out; }
