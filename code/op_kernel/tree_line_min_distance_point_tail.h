@@ -7,6 +7,7 @@
         auto ratio=arena[oTt],value=arena[oDsq];
         auto best=arena[oBest],winner=arena[oFidx],candidate=arena[oCidx];
         auto keep=arena[oMask].ReinterpretCast<uint8_t>();
+        const uint32_t carry=LARGE?AlignLanes(span):kLanes;
         Hop<HardEvent::V_S>();
         for (uint32_t j=first;j<m;++j) {
             const float ax=arena[oAx].GetValue(j),ay=arena[oAy].GetValue(j),az=arena[oAz].GetValue(j);
@@ -24,9 +25,9 @@
             } else {
                 MulAddDst(value,dy,dy,span);MulAddDst(value,dz,dz,span);
             }
-            Duplicate(candidate,(float)(int32_t)j,kLanes);
-            Compare(keep,value,best,CMPMODE::GE,kLanes);
-            Min(best,best,value,kLanes);
-            Select(winner,keep,winner,candidate,SELMODE::VSEL_TENSOR_TENSOR_MODE,kLanes);
+            Duplicate(candidate,(float)(int32_t)j,carry);
+            Compare(keep,value,best,CMPMODE::GE,carry);
+            Min(best,best,value,carry);
+            Select(winner,keep,winner,candidate,SELMODE::VSEL_TENSOR_TENSOR_MODE,carry);
         }
     }

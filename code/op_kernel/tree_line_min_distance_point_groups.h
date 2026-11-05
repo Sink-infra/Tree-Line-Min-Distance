@@ -42,11 +42,12 @@ static_assert(HoistedPointGroupLayout::oArena * sizeof(float) <= 192 * 1024);
 
 template <typename T, uint32_t MODE, bool LARGE = false, bool SHORT = false, bool WIDE = false, bool SPLIT = false, bool BANK = false, bool STRIDED = false, bool AXIS = false, bool HOIST = false>
 class KernelPointGroups {
-    static constexpr uint32_t oDx = HOIST ? HoistedPointGroupLayout::oDx : (WIDE && BANK && !STRIDED) ? 9280 : STRIDED ? 9216 : WIDE ? 9224 : LARGE ? 9224 : ::oDx;
-    static constexpr uint32_t oDy = HOIST ? HoistedPointGroupLayout::oDy : (WIDE && BANK && !STRIDED) ? 17472 : STRIDED ? 17472 : WIDE ? (BANK ? 17480 : 17424) : LARGE ? 15376 : ::oDy;
-    static constexpr uint32_t oDz = HOIST ? HoistedPointGroupLayout::oDz : (WIDE && BANK && !STRIDED) ? 25664 : STRIDED ? 25664 : WIDE ? (BANK ? 25672 : 25624) : LARGE ? 21528 : ::oDz;
-    static constexpr uint32_t oTt = HOIST ? HoistedPointGroupLayout::oTt : (WIDE && BANK && !STRIDED) ? 33952 : STRIDED ? 33824 : WIDE ? (BANK ? 33864 : 33824) : LARGE ? 27680 : ::oTt;
-    static constexpr uint32_t oDsq = HOIST ? HoistedPointGroupLayout::oDsq : (WIDE && BANK && !STRIDED) ? 9280 : STRIDED ? 9216 : WIDE ? 9224 : LARGE ? 9224 : ::oDsq;
+    static constexpr bool COMPACT_WORK = MODE==3 && !LARGE && !SHORT && !WIDE;
+    static constexpr uint32_t oDx = COMPACT_WORK ? 9280 : HOIST ? HoistedPointGroupLayout::oDx : (WIDE && BANK && !STRIDED) ? 9280 : STRIDED ? 9216 : WIDE ? 9224 : LARGE ? 9224 : ::oDx;
+    static constexpr uint32_t oDy = COMPACT_WORK ? 13440 : HOIST ? HoistedPointGroupLayout::oDy : (WIDE && BANK && !STRIDED) ? 17472 : STRIDED ? 17472 : WIDE ? (BANK ? 17480 : 17424) : LARGE ? 15376 : ::oDy;
+    static constexpr uint32_t oDz = COMPACT_WORK ? 17600 : HOIST ? HoistedPointGroupLayout::oDz : (WIDE && BANK && !STRIDED) ? 25664 : STRIDED ? 25664 : WIDE ? (BANK ? 25672 : 25624) : LARGE ? 21528 : ::oDz;
+    static constexpr uint32_t oTt = COMPACT_WORK ? 21760 : HOIST ? HoistedPointGroupLayout::oTt : (WIDE && BANK && !STRIDED) ? 33952 : STRIDED ? 33824 : WIDE ? (BANK ? 33864 : 33824) : LARGE ? 27680 : ::oTt;
+    static constexpr uint32_t oDsq = COMPACT_WORK ? 9280 : HOIST ? HoistedPointGroupLayout::oDsq : (WIDE && BANK && !STRIDED) ? 9280 : STRIDED ? 9216 : WIDE ? 9224 : LARGE ? 9224 : ::oDsq;
     static constexpr uint32_t oSegRaw = LARGE ? 9224 : ::oSegRaw;
     static constexpr uint32_t oSegFlt = LARGE ? 15376 : ::oSegFlt;
     static constexpr uint32_t oNegOne = LARGE ? 21528 : ::oNegOne;
@@ -464,9 +465,9 @@ private:
             }
 
             uint32_t blockedWindows=mRepeat;
-            if constexpr (STRIDED) {
+            if constexpr (STRIDED || (!SHORT && !WIDE)) {
                 const uint32_t tail=m%kLanes;
-                if (tail>0 && tail<=2) blockedWindows=m/kLanes;
+                if (tail>0 && tail<=2 && (STRIDED || group>=16)) blockedWindows=m/kLanes;
             }
             for (uint32_t r = 0; r < (SHORT ? 1u : blockedWindows); ++r) {
                 const uint32_t seg = r * kLanes;
@@ -521,7 +522,7 @@ private:
                 Select(bidx, keep, bidx, pair, SELMODE::VSEL_TENSOR_TENSOR_MODE, carry);
                 }
             }
-            if constexpr (STRIDED) {
+            if constexpr (STRIDED || (!SHORT && !WIDE)) {
                 if (blockedWindows<mRepeat) TailLanes(span,blockedWindows*kLanes);
             }
             if constexpr (SHORT) {

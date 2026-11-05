@@ -3,7 +3,7 @@
 namespace SharedGridSearch {
 constexpr uint32_t kArenaBytes = 188416;
 constexpr uint32_t kPoints = 3328;
-constexpr uint32_t kGroup = 56;
+constexpr uint32_t kGroup = 64;
 constexpr uint32_t kMeta = 72;
 static_assert(kArenaBytes <= 192 * 1024 - 8 * 1024);
 __aicore__ inline LocalTensor<float> F(uint32_t byte, uint32_t size = 1024)
@@ -151,6 +151,7 @@ class Search {
         return true;
     }
 #include "tree_line_min_distance_shared_pack.h"
+#include "tree_line_min_distance_shared_point_compaction.h"
 #include "tree_line_min_distance_shared_query.h"
     __aicore__ inline void RestoreOrder()
     {

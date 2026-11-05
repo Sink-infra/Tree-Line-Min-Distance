@@ -1,5 +1,16 @@
 #pragma once
 
+    __aicore__ inline float InitialRadius(uint32_t cell)
+    {
+        if constexpr (!FINE) return extent*0.1f;
+        uint32_t boundary=0;
+        for (uint32_t axis=0;axis<3;++axis) {
+            const uint32_t last=FINE && axis==2?7u:3u;
+            const uint32_t at=(cell>>(axis*2))&last;
+            boundary+=(at==0 || at==last)?1u:0u;
+        }
+        return extent*(0.05f+0.025f*(float)(int32_t)boundary);
+    }
     __aicore__ inline uint32_t PrepareCandidates(uint32_t cell, float radius)
     {
         auto enter=F(49152), exit=F(53248), endpoint=F(57344);
@@ -37,15 +48,15 @@
         PipeBarrier<PIPE_V>();
         return count;
     }
-    __aicore__ inline float ComputeGroup(uint32_t span, uint32_t candidates)
+    __aicore__ inline float ComputeGroup(uint32_t span, uint32_t candidates, bool packed=false)
     {
-        auto dx=F(98304,3584), dy=F(112768,3584), dz=F(127104,3584), ratio=F(141568,3584);
-        auto pair=F(163072,128), cmin=F(163584,64), cidx=F(163840,64);
-        auto best=F(164096,64), winner=F(164352,64);
-        auto bx=F(156672,512), by=F(158720,512), bz=F(160768,512);
-        Brcb(bx,F(155904,64),(span+7)/8,{1,8});
-        Brcb(by,F(156160,64),(span+7)/8,{1,8});
-        Brcb(bz,F(156416,64),(span+7)/8,{1,8});
+        auto dx=F(98304,4096), dy=F(114816,4096), dz=F(131200,4096), ratio=F(147712,4096);
+        auto pair=F(164096,128), cmin=F(164608,64), cidx=F(164864,64);
+        auto best=F(165120,64), winner=F(165376,64);
+        auto bx=F(49152,512), by=F(51200,512), bz=F(53248,512);
+        Brcb(bx,F(packed?55296:155904,64),(span+7)/8,{1,8});
+        Brcb(by,F(packed?55552:156160,64),(span+7)/8,{1,8});
+        Brcb(bz,F(packed?55808:156416,64),(span+7)/8,{1,8});
         Duplicate(best,kGuardDist,64); Duplicate(winner,0.0f,64);
         const BinaryRepeatParams spread(1,1,0,8,0,1), fold(1,1,1,8,8,0), plain(1,1,1,8,8,8);
         const UnaryRepeatParams unary(1,1,8,8);
@@ -81,34 +92,46 @@
         Gather(winner,F(168704),cidx.ReinterpretCast<uint32_t>(),0u,span);
         Muls(winner,winner,0.25f,span);
         Sqrt(best,best,span);
-        CompareScalar(Mask(0),F(162816,64),0.0f,CMPMODE::GT,64);
+        CompareScalar(Mask(0),F(165888,64),0.0f,CMPMODE::GT,64);
         Select(pair,Mask(0),best,0.0f,SELMODE::VSEL_TENSOR_SCALAR_MODE,64);
-        ReduceMax(cmin,pair,F(164608),64,false);
+        ReduceMax(cmin,pair,F(166144),64,false);
         Hop<HardEvent::V_S>();
         return cmin.GetValue(0);
     }
-    __aicore__ inline void LoadGroup(uint32_t cell,uint32_t groupStart,uint32_t span)
+    __aicore__ inline uint32_t LoadGroup(uint32_t cell,uint32_t groupStart,uint32_t span,bool buildInverse=false)
     {
         if (stored) Hop<HardEvent::MTE3_V>();
         for (uint32_t axis=0;axis<3;++axis) Duplicate(F(155904+axis*256,64),0.0f,64);
-        Duplicate(F(162816,64),0.0f,64);
+        Duplicate(F(165888,64),0.0f,64);
+        auto inverse=F(185632,64);
+        if (buildInverse) Duplicate(inverse,0.0f,64);
         Hop<HardEvent::V_MTE2>();
-        uint32_t position=0;
+        uint32_t position=0,real=0;
         for (uint32_t q=0;q<t.chunks;++q) {
-            const uint32_t source=batch*t.chunks+q, entry=Entry(source,cell);
-            const uint32_t count=entry&4095u, end=position+count;
+            const uint32_t source=batch*t.chunks+q,entry=Entry(source,cell);
+            const uint32_t count=entry&4095u,end=position+count;
             const uint32_t left=position>groupStart?position:groupStart;
             const uint32_t right=end<groupStart+span?end:groupStart+span;
             if (right>left) {
-                const uint32_t local=left-groupStart, length=right-left, offset=(entry>>12)+left-position;
-                Duplicate(F(162816,64)[local],1.0f,length);
+                const uint32_t local=left-groupStart,length=right-left,offset=(entry>>12)+left-position;
+                Duplicate(F(165888,64)[local],1.0f,length);
+                if (buildInverse) {
+                    Adds(inverse[local],F(185888,64)[local],
+                         (float)(int32_t)real-(float)(int32_t)local,length);
+                    real+=length;
+                }
                 for (uint32_t axis=0;axis<3;++axis)
                     DataCopyPad(F(155904+axis*256,64)[local],work[Stream(source,axis,offset)],
                         {1,length*4,0,0,0},{false,0,0,0});
             }
             position+=Round8(count);
         }
+        if (buildInverse) {
+            Muls(inverse,inverse,4.0f,64);
+            Cast(inverse.ReinterpretCast<int32_t>(),inverse,RoundMode::CAST_RINT,64);
+        }
         Hop<HardEvent::MTE2_V>();
+        return buildInverse?real:span;
     }
     __aicore__ inline void StoreGroup(uint32_t cell,uint32_t groupStart,uint32_t span)
     {
@@ -121,8 +144,8 @@
             const uint32_t right=end<groupStart+span?end:groupStart+span;
             if (right>left) {
                 const uint32_t local=left-groupStart,length=right-left,offset=(entry>>12)+left-position;
-                DataCopyPad(work[Stream(source,3,offset)],F(164096,64)[local],{1,length*4,0,0,0});
-                DataCopyPad(work[Stream(source,4,offset)],F(164352,64)[local],{1,length*4,0,0,0});
+                DataCopyPad(work[Stream(source,3,offset)],F(165120,64)[local],{1,length*4,0,0,0});
+                DataCopyPad(work[Stream(source,4,offset)],F(165376,64)[local],{1,length*4,0,0,0});
             }
             position+=Round8(count);
         }
@@ -139,7 +162,7 @@
             uint32_t total=0;
             for (uint32_t q=0;q<t.chunks;++q) total+=Round8(Entry(batch*t.chunks+q,cell)&4095u);
             if (total==0) continue;
-            float radius=extent*0.1f;
+            float radius=InitialRadius(cell);
             bool certified=false;
             for (uint32_t attempt=0;attempt<2;++attempt) {
                 if (stored) Hop<HardEvent::MTE3_V>();
@@ -148,8 +171,11 @@
                 float maximum=0.0f;
                 for (uint32_t at=0;at<total;at+=kGroup) {
                     const uint32_t span=total-at<kGroup?total-at:kGroup;
-                    LoadGroup(cell,at,span);
-                    const float value=ComputeGroup(span,candidates);
+                    const uint32_t real=LoadGroup(cell,at,span,candidates>=128);
+                    const bool packed=real>0 && (span-real)*((candidates+63)/64)>=16;
+                    if (packed) CompactPointGroup(span,real);
+                    const float value=ComputeGroup(packed?real:span,candidates,packed);
+                    if (packed) ExpandPointGroup(span,real);
                     maximum=value>maximum?value:maximum;
                     StoreGroup(cell,at,span);
                 }
@@ -163,6 +189,7 @@
 
     __aicore__ inline bool QueryCells()
     {
+        CreateVecIndex(F(185888,64),0.0f,64);
         if constexpr (!FINE) return QueryHistorical();
         else {
         bool valid=true;
@@ -174,7 +201,7 @@
             uint32_t total=0;
             for (uint32_t q=0;q<t.chunks;++q) total+=Round8(Entry(batch*t.chunks+q,cell)&4095u);
             if (total==0) continue;
-            float radius=extent*0.1f;
+            float radius=InitialRadius(cell);
             bool certified=false,firstPass=false;
             uint32_t retryCount=0;
             auto retries=F(186368,320).ReinterpretCast<uint32_t>();
@@ -190,8 +217,11 @@
                 for (uint32_t group=0;group<groups;++group) {
                     const uint32_t at=partial?retries.GetValue(group):group*kGroup;
                     const uint32_t span=total-at<kGroup?total-at:kGroup;
-                    LoadGroup(cell,at,span);
-                    const float value=ComputeGroup(span,candidates);
+                    const uint32_t real=LoadGroup(cell,at,span,candidates>=128);
+                    const bool packed=real>0 && (span-real)*((candidates+63)/64)>=16;
+                    if (packed) CompactPointGroup(span,real);
+                    const float value=ComputeGroup(packed?real:span,candidates,packed);
+                    if (packed) ExpandPointGroup(span,real);
                     if (attempt==0 && value>radius) retries.SetValue(retryCount++,at);
                     maximum=value>maximum?value:maximum;
                     StoreGroup(cell,at,span);
