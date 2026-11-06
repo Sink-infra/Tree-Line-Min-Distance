@@ -90,6 +90,7 @@ class KernelPointGroups {
     float axisLow = 0.0f, axisHigh = 0.0f, axisZ = 0.0f;
 
 public:
+    template <bool DEFER_TABLES = false>
     __aicore__ inline void Init(GM_ADDR p, GM_ADDR s, GM_ADDR d, GM_ADDR i,
                                 const TreeLineMinDistanceTilingData &t, TPipe *pipe)
     {
@@ -115,13 +116,18 @@ public:
         if (mode == 2) {
             return;
         }
-        // Lane-invariant address tables and constants, built once per kernel.
-        LocalTensor<float> scratch = arena[oLen];
-        BuildScale(scratch, arena[oSegOff], 24.0f, mAligned);
-        if (mode != 0) {
-            BuildScale(scratch, arena[oPtOff], 12.0f, AlignLanes(tilePoints));
-        }
-        if constexpr (!DIRECT_SHORT) Duplicate(arena[oNegOne], -1.0f, mAligned);
+        if constexpr (!DEFER_TABLES) PrepareTables();
+    }
+
+    __aicore__ inline void ProcessShortBatch()
+    {
+        const uint32_t batch = GetBlockIdx();
+        LoadSegments(batch);
+        LoadPoints(batch, 0, n);
+        PrepareTables();
+        Hop<HardEvent::MTE2_V>();
+        DeriveSegments();
+        BlockedLanes<true>(batch, 0, n);
     }
 
     __aicore__ inline void ProcessOne()
@@ -252,6 +258,17 @@ public:
     }
 
 private:
+    __aicore__ inline void PrepareTables()
+    {
+        // Lane-invariant address tables and constants, built once per kernel.
+        LocalTensor<float> scratch = arena[oLen];
+        BuildScale(scratch, arena[oSegOff], 24.0f, mAligned);
+        if (mode != 0) {
+            BuildScale(scratch, arena[oPtOff], 12.0f, AlignLanes(tilePoints));
+        }
+        if constexpr (!DIRECT_SHORT) Duplicate(arena[oNegOne], -1.0f, mAligned);
+    }
+
 
     __aicore__ inline bool DetectOrderedAxis()
     {
@@ -453,6 +470,7 @@ private:
     // paid once per group instead of once per point.
 #include "tree_line_min_distance_neighbor_seed.h"
 
+    template <bool ONE_GROUP = false>
     __aicore__ inline void BlockedLanes(uint32_t batch, uint32_t start, uint32_t count)
     {
         if constexpr (NEIGHBOR) {
@@ -492,7 +510,7 @@ private:
 
         for (uint32_t done = 0; done < count; done += group) {
             uint32_t span = count - done;
-            if (span > group) {
+            if (!ONE_GROUP && span > group) {
                 span = group;
             }
             const uint8_t reps = (uint8_t)span;
@@ -588,6 +606,7 @@ private:
                 Cast(out, bidx, RoundMode::CAST_RINT, span);
                 Emit(batch, start + done, span, dist, out);
             }
+            if constexpr (ONE_GROUP) break;
             if (done + group < count) {
                 Hop<HardEvent::MTE3_V>();
             }
