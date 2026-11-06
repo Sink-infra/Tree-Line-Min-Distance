@@ -151,12 +151,22 @@
         Gather(ux, arena[oUx], off, 0u, lanes);
         Gather(uy, arena[oUy], off, 0u, lanes);
         Gather(uz, arena[oUz], off, 0u, lanes);
-        Gather(kx, arena[oKx], off, 0u, lanes);
-        Gather(ky, arena[oKy], off, 0u, lanes);
-        Gather(kz, arena[oKz], off, 0u, lanes);
         Sub(cx, cx, px, lanes); Sub(cy, cy, py, lanes); Sub(cz, cz, pz, lanes);
-        Mul(ratio, cx, kx, lanes);
-        MulAddDst(ratio, cy, ky, lanes); MulAddDst(ratio, cz, kz, lanes);
+        if constexpr (ANALYTIC_BOUND) {
+            Gather(kx, arena[oLen], off, 0u, lanes);
+            Muls(kx, kx, -1.0f, lanes);
+            Mul(ratio, cx, ux, lanes);
+            MulAddDst(ratio, cy, uy, lanes);
+            MulAddDst(ratio, cz, uz, lanes);
+            Div(ratio, ratio, kx, lanes);
+        } else {
+            Gather(kx, arena[oKx], off, 0u, lanes);
+            Gather(ky, arena[oKy], off, 0u, lanes);
+            Gather(kz, arena[oKz], off, 0u, lanes);
+            Mul(ratio, cx, kx, lanes);
+            MulAddDst(ratio, cy, ky, lanes);
+            MulAddDst(ratio, cz, kz, lanes);
+        }
         Maxs(ratio, ratio, 0.0f, lanes); Mins(ratio, ratio, 1.0f, lanes);
         MulAddDst(cx, ratio, ux, lanes);
         MulAddDst(cy, ratio, uy, lanes); MulAddDst(cz, ratio, uz, lanes);
@@ -178,6 +188,21 @@
         auto distance = arena[oDist];
         Sqrt(distance, best, count);
         Cast(resultIndex, winner, RoundMode::CAST_RINT, count);
+        if constexpr (ANALYTIC_BOUND) {
+            // A rounded seed is within half a step of the envelope center.
+            // When the seed is clamped, there is no omitted segment on the
+            // clamped side. The same bound applies to the other side.
+            const float clearance = 1.5f * step - 0.5f * (highDelta - lowDelta) - 2.0f * margin;
+            if (clearance > 0.0f) {
+                ReduceMax(pair, distance, reduction, count, false);
+                Hop<HardEvent::V_S>();
+                if (pair.GetValue(0) < clearance) {
+                    Emit(batch, start, count, distance, resultIndex);
+                    return true;
+                }
+                Hop<HardEvent::S_V>();
+            }
+        }
         Adds(radius, distance, margin, count);
         Muls(delta, seed, step, count); Adds(delta, delta, origin, count);
         Sub(delta, projection, delta, count);

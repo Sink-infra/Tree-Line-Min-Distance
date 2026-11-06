@@ -202,7 +202,10 @@ public:
                 if (mode != 2) {
                     if constexpr (AXIS) {
                         if (!orderedAxis) { Hop<HardEvent::MTE2_V>(); DeriveSegments(); }
-                    } else { Hop<HardEvent::MTE2_V>(); DeriveSegments(); }
+                    } else {
+                        Hop<HardEvent::MTE2_V>();
+                        DeriveSegments(ANALYTIC_BOUND && neighborAttempt);
+                    }
                 }
             }
             if (mode == 1) {
@@ -404,13 +407,13 @@ private:
     // Splits the interleaved endpoints into lane arrays and derives the
     // direction, the guarded inverse length and the fused projection
     // coefficients once for the whole batch.
-    __aicore__ inline void DeriveSegments()
+    __aicore__ inline void DeriveSegments(bool lengthsOnly = false)
     {
         LocalTensor<T> raw = arena[oSegRaw].template ReinterpretCast<T>();
         LocalTensor<float> ax = arena[oAx], ay = arena[oAy], az = arena[oAz];
         LocalTensor<float> ux = arena[oUx], uy = arena[oUy], uz = arena[oUz];
         LocalTensor<float> kx = arena[oKx], ky = arena[oKy], kz = arena[oKz];
-        LocalTensor<float> len = arena[oLen], invLen = arena[oInvLen];
+        LocalTensor<float> len = arena[oLen];
         LocalTensor<uint32_t> off = arena[oSegOff].ReinterpretCast<uint32_t>();
 
         if (mAligned != m) {
@@ -456,11 +459,17 @@ private:
         if constexpr (DIRECT_SHORT) {
             Muls(kx, len, -1.0f, mAligned);
         } else {
-            Div(invLen, arena[oNegOne], len, mAligned);
-            Mul(kx, ux, invLen, m);
-            Mul(ky, uy, invLen, m);
-            Mul(kz, uz, invLen, m);
+            if (!lengthsOnly) DeriveProjection();
         }
+    }
+
+    __aicore__ inline void DeriveProjection()
+    {
+        auto inverse = arena[oInvLen];
+        Div(inverse, arena[oNegOne], arena[oLen], mAligned);
+        Mul(arena[oKx], arena[oUx], inverse, m);
+        Mul(arena[oKy], arena[oUy], inverse, m);
+        Mul(arena[oKz], arena[oUz], inverse, m);
     }
 
 #include "tree_line_min_distance_point_tail.h"
@@ -474,7 +483,10 @@ private:
     __aicore__ inline void BlockedLanes(uint32_t batch, uint32_t start, uint32_t count)
     {
         if constexpr (NEIGHBOR) {
-            if (neighborAttempt && TryNeighborSeed(batch, start, count)) return;
+            if (neighborAttempt) {
+                if (TryNeighborSeed(batch, start, count)) return;
+                if constexpr (ANALYTIC_BOUND) DeriveProjection();
+            }
         }
         LocalTensor<T> raw = arena[oPtRaw].template ReinterpretCast<T>();
         LocalTensor<float> src = arena[oPtRaw];
