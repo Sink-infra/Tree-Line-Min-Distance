@@ -58,6 +58,31 @@ __aicore__ inline void Evaluate(uint32_t count, uint32_t segments)
 }
 
 template <typename T>
+__aicore__ inline bool AffineEndpointProbe(const LocalTensor<T>& src, uint32_t lastRow,
+                                           uint32_t prefix)
+{
+    float sampledSpan = -1.0f, sampledWidth = 0.0f;
+    for (uint32_t axis = 0; axis < 3; ++axis) {
+        const float a = (float)src.GetValue(axis), c = (float)src.GetValue(axis + 3);
+        const uint32_t last = lastRow + axis;
+        const float e = (float)src.GetValue(last), f = (float)src.GetValue(last + 3);
+        const float firstDirection = c - a, lastDirection = f - e;
+        const float span = e + 0.5f * lastDirection - a - 0.5f * firstDirection;
+        const float magnitude = span < 0.0f ? -span : span;
+        if (magnitude > sampledSpan) {
+            sampledSpan = magnitude;
+            const float w0 = firstDirection < 0.0f ? -firstDirection : firstDirection;
+            const float w1 = lastDirection < 0.0f ? -lastDirection : lastDirection;
+            sampledWidth = w0 > w1 ? w0 : w1;
+        }
+    }
+    // A certified model spans at most sixteen index steps per segment.
+    // This loose sample rejection precedes all coefficient preparation.
+    return sampledSpan > 0.0f &&
+        sampledWidth * (float)(int32_t)(prefix - 1) <= 32.0f * sampledSpan;
+}
+
+template <typename T>
 __aicore__ inline bool Run(GM_ADDR p, GM_ADDR s, GM_ADDR d, GM_ADDR i,
                           const TreeLineMinDistanceTilingData& t)
 {
@@ -77,6 +102,14 @@ __aicore__ inline bool Run(GM_ADDR p, GM_ADDR s, GM_ADDR d, GM_ADDR i,
     LocalTensor<int32_t> segmentOffsets(TPosition::VECCALC, 86016, 1024);
     auto low = F(90112, 1024), high = F(94208, 1024), anchor = F(98304, 1024);
     LocalTensor<uint8_t> keep(TPosition::VECCALC, 121600, 256);
+    if constexpr (sizeof(T) == 2) {
+        LocalTensor<T> edges(TPosition::VECCALC, 106752, 32);
+        const DataCopyExtParams sample{2, 6 * sizeof(T),
+            (uint32_t)((prefix - 2) * 6 * sizeof(T)), 0, 0};
+        DataCopyPad(edges, segments[(uint64_t)batch * t.m * 6], sample, {false, 0, 0, 0});
+        Hop<HardEvent::MTE2_S>();
+        if (!AffineEndpointProbe(edges, 16, prefix)) return false;
+    }
     DataCopyPad(raw, segments[(uint64_t)batch * t.m * 6],
         {1, (uint32_t)(t.m * 6 * sizeof(T)), 0, 0, 0}, {false, 0, 0, 0});
     CreateVecIndex(temp, 0.0f, wideM); Muls(temp, temp, 24.0f, wideM);
@@ -85,27 +118,11 @@ __aicore__ inline bool Run(GM_ADDR p, GM_ADDR s, GM_ADDR d, GM_ADDR i,
     if constexpr (sizeof(T) == 2) {
         Hop<HardEvent::MTE2_V>();
         src = converted; Cast(src, raw, RoundMode::CAST_NONE, t.m * 6);
-        Hop<HardEvent::V_S>();
+        PipeBarrier<PIPE_V>();
     } else { Hop<HardEvent::MTE2_S>(); }
-    float sampledSpan = -1.0f, sampledWidth = 0.0f;
-    for (uint32_t axis = 0; axis < 3; ++axis) {
-        const float a = src.GetValue(axis), c = src.GetValue(axis + 3);
-        const uint32_t last = 6 * (prefix - 1) + axis;
-        const float e = src.GetValue(last), f = src.GetValue(last + 3);
-        const float firstDirection = c - a, lastDirection = f - e;
-        const float span = e + 0.5f * lastDirection - a - 0.5f * firstDirection;
-        const float magnitude = span < 0.0f ? -span : span;
-        if (magnitude > sampledSpan) {
-            sampledSpan = magnitude;
-            const float w0 = firstDirection < 0.0f ? -firstDirection : firstDirection;
-            const float w1 = lastDirection < 0.0f ? -lastDirection : lastDirection;
-            sampledWidth = w0 > w1 ? w0 : w1;
-        }
+    if constexpr (sizeof(T) == 4) {
+        if (!AffineEndpointProbe(src, 6 * (prefix - 1), prefix)) return false;
     }
-    // A certified model spans at most sixteen index steps per segment.
-    // This loose sample rejection precedes all coefficient preparation.
-    if (!(sampledSpan > 0.0f) ||
-        sampledWidth * (float)(int32_t)(prefix - 1) > 32.0f * sampledSpan) return false;
     Hop<HardEvent::MTE2_V>();
     auto absolute = sizeof(T) == 2 ? F(36864, 6144) : converted;
     Duplicate(absolute, 0.0f, AlignLanes(t.m * 6));

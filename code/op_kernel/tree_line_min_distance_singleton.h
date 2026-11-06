@@ -1,95 +1,118 @@
 #pragma once
 
-#include "tree_line_min_distance_singleton_screen.h"
-
 template <typename T>
-__aicore__ inline void SingleSegmentTask(GM_ADDR p, GM_ADDR s, GM_ADDR d, GM_ADDR i,
-                                        const TreeLineMinDistanceTilingData &t)
+__aicore__ inline float SingletonSegmentDistance(const LocalTensor<T>& src,
+    uint32_t j, float px, float py, float pz)
 {
-    GlobalTensor<T> points, segments, distances;
-    GlobalTensor<int32_t> indices;
-    points.SetGlobalBuffer((__gm__ T *)p);
-    segments.SetGlobalBuffer((__gm__ T *)s);
-    distances.SetGlobalBuffer((__gm__ T *)d);
-    indices.SetGlobalBuffer((__gm__ int32_t *)i);
-    LocalTensor<T> seg(TPosition::VECCALC, 0, 16);
-    LocalTensor<T> raw(TPosition::VECCALC, 64, 3072);
-    LocalTensor<float> converted(TPosition::VECCALC, 12352, 3072);
-    LocalTensor<int32_t> off(TPosition::VECCALC, 24640, 1024);
-    LocalTensor<int32_t> idx(TPosition::VECCALC, 28736, 1024);
-    LocalTensor<float> px(TPosition::VECCALC, 32832, 1024);
-    LocalTensor<float> py(TPosition::VECCALC, 36960, 1024);
-    LocalTensor<float> pz(TPosition::VECCALC, 41088, 1024);
-    LocalTensor<float> ratio(TPosition::VECCALC, 45216, 1024);
-    LocalTensor<float> temp(TPosition::VECCALC, 49344, 1024);
-    LocalTensor<float> dist(TPosition::VECCALC, 53472, 1024);
-    LocalTensor<T> narrow(TPosition::VECCALC, 57600, 1024);
-    const uint32_t width = AlignLanes(t.tilePoints);
-    CreateVecIndex(temp, 0.0f, width);
-    Muls(temp, temp, 12.0f, width);
-    Cast(off, temp, RoundMode::CAST_RINT, width);
-    Duplicate(idx, 0, width);
-    uint32_t cached = 0xFFFFFFFFu;
-    float ax = 0, ay = 0, az = 0, ux = 0, uy = 0, uz = 0;
-    float kx = 0, ky = 0, kz = 0;
-    bool stored = false;
-    for (uint32_t task = GetBlockIdx(); task < t.b * t.chunks; task += GetBlockNum()) {
-        const uint32_t batch = task / t.chunks;
-        const uint32_t begin = (task % t.chunks) * t.chunkPoints;
-        if (begin >= t.n) continue;
-        const uint32_t count = t.n - begin < t.chunkPoints ? t.n - begin : t.chunkPoints;
-        if (stored) Hop<HardEvent::MTE3_V>();
-        const bool fresh = cached != batch;
-        if (fresh) {
-            DataCopyPad(seg, segments[(uint64_t)batch * 6],
-                        {1, (uint32_t)(6 * sizeof(T)), 0, 0, 0}, {false, 0, 0, 0});
-        }
-        DataCopyPad(raw, points[((uint64_t)batch * t.n + begin) * 3],
-                    {1, (uint32_t)(count * 3 * sizeof(T)), 0, 0, 0}, {false, 0, 0, 0});
-        if (fresh) {
-            Hop<HardEvent::MTE2_S>();
-            ax = (float)seg.GetValue(0); ay = (float)seg.GetValue(1); az = (float)seg.GetValue(2);
-            ux = (float)seg.GetValue(3) - ax;
-            uy = (float)seg.GetValue(4) - ay;
-            uz = (float)seg.GetValue(5) - az;
-            const float length = ux * ux + uy * uy + uz * uz;
-            const float inv = length > 0.0f ? 1.0f / length : 0.0f;
-            kx = ux * inv; ky = uy * inv; kz = uz * inv;
-            cached = batch;
-        }
-        Hop<HardEvent::MTE2_V>();
-        LocalTensor<float> src = raw.template ReinterpretCast<float>();
-        if constexpr (sizeof(T) == 2) {
-            src = converted;
-            Cast(src, raw, RoundMode::CAST_NONE, count * 3);
-            PipeBarrier<PIPE_V>();
-        }
-        Gather(px, src, off.template ReinterpretCast<uint32_t>(), 0u, count);
-        Gather(py, src, off.template ReinterpretCast<uint32_t>(), 4u, count);
-        Gather(pz, src, off.template ReinterpretCast<uint32_t>(), 8u, count);
-        Adds(px, px, -ax, count); Adds(py, py, -ay, count); Adds(pz, pz, -az, count);
-        Muls(ratio, px, kx, count);
-        Axpy(ratio, py, ky, count); Axpy(ratio, pz, kz, count);
-        Maxs(ratio, ratio, 0.0f, count); Mins(ratio, ratio, 1.0f, count);
-        Axpy(px, ratio, -ux, count); Axpy(py, ratio, -uy, count); Axpy(pz, ratio, -uz, count);
-        Mul(dist, px, px, count);
-        MulAddDst(dist, py, py, count); MulAddDst(dist, pz, pz, count);
-        Sqrt(dist, dist, count);
-        if constexpr (sizeof(T) == 2) {
-            Cast(narrow, dist, RoundMode::CAST_RINT, count);
-            Hop<HardEvent::V_MTE3>();
-            DataCopyPad(distances[(uint64_t)batch * t.n + begin], narrow,
-                        {1, (uint32_t)(count * sizeof(T)), 0, 0, 0});
-        } else {
-            Hop<HardEvent::V_MTE3>();
-            DataCopyPad(distances[(uint64_t)batch * t.n + begin], dist.template ReinterpretCast<T>(),
-                        {1, (uint32_t)(count * sizeof(T)), 0, 0, 0});
-        }
-        DataCopyPad(indices[(uint64_t)batch * t.n + begin], idx, {1, count * 4, 0, 0, 0});
-        stored = true;
+    const uint32_t base = 6 * j;
+    const float ax = (float)src.GetValue(base), ay = (float)src.GetValue(base + 1), az = (float)src.GetValue(base + 2);
+    const float ux = (float)src.GetValue(base + 3) - ax;
+    const float uy = (float)src.GetValue(base + 4) - ay;
+    const float uz = (float)src.GetValue(base + 5) - az;
+    float dx = px - ax, dy = py - ay, dz = pz - az;
+    const float length = ux * ux + uy * uy + uz * uz;
+    const float dot = dx * ux + dy * uy + dz * uz;
+    if (length > 0.0f && dot > 0.0f) {
+        const float t = dot < length ? dot / length : 1.0f;
+        dx -= t * ux; dy -= t * uy; dz -= t * uz;
     }
+    return dx * dx + dy * dy + dz * dz;
 }
 
+template <typename T>
+__aicore__ inline bool SingletonSparseSeed(const LocalTensor<T>& raw, uint32_t m,
+    float px, float py, float pz, float& best, int32_t& winner)
+{
+    const float a0 = (float)raw.GetValue(0), c0 = (float)raw.GetValue(3);
+    const float a1 = (float)raw.GetValue(6 * (m - 1)), c1 = (float)raw.GetValue(6 * (m - 1) + 3);
+    const float origin = a0 + 0.5f * (c0 - a0);
+    const float span = a1 + 0.5f * (c1 - a1) - origin;
+    const float magnitude = span < 0.0f ? -span : span;
+    float w0 = c0 - a0, w1 = c1 - a1;
+    if (w0 < 0.0f) w0 = -w0;
+    if (w1 < 0.0f) w1 = -w1;
+    const float width = w0 > w1 ? w0 : w1;
+    if (!(magnitude > 0.0f) || width * (float)(int32_t)(m - 1) > 32.0f * magnitude) return false;
+    float location = (px - origin) * (float)(int32_t)(m - 1) / span;
+    if (location < 0.0f) location = 0.0f;
+    if (location > (float)(int32_t)(m - 1)) location = (float)(int32_t)(m - 1);
+    if (!(location >= 0.0f && location <= (float)(int32_t)(m - 1))) return false;
+    winner = (int32_t)(location + 0.5f);
+    best = SingletonSegmentDistance(raw, (uint32_t)winner, px, py, pz);
+    if (!(best >= 0.0f && best < kGuardDist)) return false;
+    const float position = (px - origin) * (span > 0.0f ? 1.0f : -1.0f);
+    float outside = 0.0f;
+    if (position < 0.0f) outside = -position;
+    else if (position > magnitude) outside = position - magnitude;
+    const float reach = outside + 8.0f * magnitude / (float)(int32_t)(m - 1) + width;
+    return best <= reach * reach;
+}
+
+// The projected segment lies inside its endpoint interval. Roundoff slack
+// expands that interval before it is used as a lower bound.
+template <typename T>
+__aicore__ inline bool ScreenSingleton(const LocalTensor<float>& src,
+    const LocalTensor<int32_t>& offsets, const LocalTensor<float>& ax,
+    const LocalTensor<float>& cx, const LocalTensor<float>& lo,
+    const LocalTensor<float>& hi, const LocalTensor<float>& bound,
+    const LocalTensor<float>& temp, const LocalTensor<float>& pair,
+    const LocalTensor<uint8_t>& mask, uint32_t m, uint32_t width,
+    float px, float py, float pz, float& best, int32_t& winner,
+    uint32_t& compactCount)
+{
+    if (m < 128) return false;
+    const float threshold = best * 1.0001f + 1.0e-10f;
+    if constexpr (sizeof(T) == 2) {
+        // Each input coordinate is exactly representable in float. Across
+        // the finite half range, the two coordinate subtractions, projected
+        // residual, and radius endpoint rounding cost less than 1/8.
+        const float radius = sqrt(threshold) + 0.125f;
+        const auto highMask = temp.ReinterpretCast<uint8_t>();
+        const uint8_t repeats = (uint8_t)(width / kLanes);
+        const BinaryRepeatParams binary(1, 1, 1, 8, 8, 8);
+        const UnaryRepeatParams unary(1, 1, 8, 8);
+        SetMaskNorm();
+        SetVectorMask<float>((int32_t)kLanes);
+        Min<float, false>(lo, ax, cx, (uint64_t)kLanes, repeats, binary);
+        Max<float, false>(hi, ax, cx, (uint64_t)kLanes, repeats, binary);
+        CompareScalar<float, uint8_t, false>(mask, lo, px + radius, CMPMODE::LE,
+            (uint64_t)kLanes, repeats, unary);
+        CompareScalar<float, uint8_t, false>(highMask, hi, px - radius, CMPMODE::GE,
+            (uint64_t)kLanes, repeats, unary);
+        ResetMask();
+        And(mask.ReinterpretCast<uint16_t>(), mask.ReinterpretCast<uint16_t>(),
+            highMask.ReinterpretCast<uint16_t>(), width / 16);
+    } else {
+        Duplicate(bound, kGuardDist, width);
+        Min(lo, ax, cx, m); Max(hi, ax, cx, m);
+        Adds(lo, lo, -px, m);
+        Muls(hi, hi, -1.0f, m); Adds(hi, hi, px, m);
+        Max(bound, lo, hi, m);
+        Abs(lo, ax, m); Abs(hi, cx, m);
+        Max(lo, lo, hi, m);
+        Maxs(lo, lo, px < 0.0f ? -px : px, m);
+        Muls(lo, lo, 1.0e-5f, m); Adds(lo, lo, 1.0e-5f, m);
+        Sub(bound, bound, lo, m); Maxs(bound, bound, 0.0f, m);
+        Mul(bound, bound, bound, m);
+        CompareScalar(mask, bound, threshold, CMPMODE::LE, width);
+    }
+    uint64_t kept = 0;
+    GatherMask(lo.ReinterpretCast<int32_t>(), offsets, mask.ReinterpretCast<uint32_t>(),
+               true, m, {1, 1, 0, 0}, kept);
+    Hop<HardEvent::V_S>();
+    if (kept == 0 || kept > 8) {
+        if (kept >= 9 && kept <= 64) compactCount = (uint32_t)kept;
+        return false;
+    }
+    const int32_t seedIndex = winner;
+    for (uint32_t q = 0; q < (uint32_t)kept; ++q) {
+        const int32_t j = lo.ReinterpretCast<int32_t>().GetValue(q) / 24;
+        if (j == seedIndex) continue;
+        const float value = SingletonSegmentDistance(src, (uint32_t)j, px, py, pz);
+        if (value < best || (value == best && j < winner)) { best = value; winner = j; }
+    }
+    return best * 1.0001f + 1.0e-10f <= threshold;
+}
 
 template <typename T>
 __aicore__ inline void FusedPointSegments(GM_ADDR p, GM_ADDR s, GM_ADDR d, GM_ADDR i,

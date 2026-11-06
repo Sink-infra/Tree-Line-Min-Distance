@@ -73,7 +73,8 @@ __aicore__ inline void Hop()
 
 #include "tree_line_min_distance_small.h"
 
-#include "tree_line_min_distance_single_axis.h"
+#include "tree_line_min_distance_single_segment.h"
+#include "tree_line_min_distance_singleton.h"
 #include "tree_line_min_distance_affine.h"
 #include "tree_line_min_distance_shared_grid.h"
 
@@ -83,6 +84,13 @@ __global__ __aicore__ void tree_line_min_distance(GM_ADDR tree_points, GM_ADDR l
                                                   GM_ADDR workspace, GM_ADDR tiling)
 {
     REGISTER_TILING_DEFAULT(TreeLineMinDistanceTilingData);
+    if constexpr (PATH == 246) {
+        GET_TILING_DATA_WITH_STRUCT(TreeLineMinDistanceTilingData, singleTiling, tiling);
+        InitSocState();
+        SingleSegmentTask<DT_TREE_POINTS, true>(tree_points, line_segments, min_distance,
+                                                 nearest_segment_idx, singleTiling);
+        return;
+    }
     if constexpr (PATH == 218) {
         GET_TILING_DATA_WITH_STRUCT(TreeLineMinDistanceTilingData, shortTiling, tiling);
         InitSocState();

@@ -543,7 +543,7 @@ private:
             }
 
             uint32_t blockedWindows=mRepeat;
-            if constexpr (STRIDED || (!SHORT && !WIDE)) {
+            if constexpr (STRIDED || (HOIST && sizeof(T) == 2) || (!SHORT && !WIDE)) {
                 const uint32_t tail=m%kLanes;
                 if (tail>0 && tail<=2 && (STRIDED || group>=16)) blockedWindows=m/kLanes;
             }
@@ -607,7 +607,7 @@ private:
                 Select(bidx, keep, bidx, pair, SELMODE::VSEL_TENSOR_TENSOR_MODE, carry);
                 }
             }
-            if constexpr (STRIDED || (!SHORT && !WIDE)) {
+            if constexpr (STRIDED || (HOIST && sizeof(T) == 2) || (!SHORT && !WIDE)) {
                 if (blockedWindows<mRepeat) TailLanes(span,blockedWindows*kLanes);
             }
             if constexpr (SHORT) {
