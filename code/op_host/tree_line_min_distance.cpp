@@ -176,6 +176,9 @@ static ge::graphStatus TilingFunc(gert::TilingContext *context) {
     if (PATH == 80 && dtype == ge::DT_FLOAT && chunks == 1 &&
         n <= 8 && m <= kLanes && b <= cores) PATH = 218;
     if (PATH == 53 && dtype == ge::DT_FLOAT && b * t->chunks <= cores) PATH = 246;
+    if (PATH == 128 && dtype == ge::DT_FLOAT16 && m >= 128 && (m & (m - 1)) == 0) {
+        PATH = 247 + __builtin_ctz((uint32_t)m) - 7;
+    }
     ASCENDC_TPL_SEL_PARAM(context,DT_TREE_POINTS,PATH);
     context->GetWorkspaceSizes(1)[0]=(PATH==252 || PATH==253) ? platform.GetLibApiWorkSpaceSize() + (uint64_t)tasks*(6*((chunkPoints+7)/8*8+512)*4+72*4) : 0;
     return ge::GRAPH_SUCCESS;
